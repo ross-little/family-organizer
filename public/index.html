@@ -1,0 +1,88 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Family Organizer</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/EventSource-polyfill/1.0.12/eventsource.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <button class="menu-btn active" id="loginTab">Login</button>
+      <button class="menu-btn" id="todoTab" disabled>ToDo List</button>
+      <button class="menu-btn logout-btn">Logout</button>
+    </div>
+
+    <!-- Main content -->
+    <div class="main-content">
+      <!-- Top bar -->
+      <div class="top-bar">
+        <div class="title">Family Organizer</div>
+        <div class="user-info" id="topbarUserInfo"></div>
+      </div>
+
+      <!-- Login panel -->
+      <div id="loginPanel">
+        <h2>Login</h2>
+        <!-- Google Auth Section -->
+        <div id="googleAuthSection">
+          <div style="max-width: 300px; width: 100%; margin: 10px 0;">
+            <div id="g_id_onload"
+              data-client_id="756308606831-cit2uesjqg1t61tsp7ukokifr8p75kaf.apps.googleusercontent.com"
+              data-callback="onSignIn"
+              data-auto_prompt="false"
+              data-personalization="none">
+            </div>
+            <div class="g_id_signin"
+              data-type="standard"
+              data-size="large"
+              data-theme="outline"
+              data-text="sign_in_with"
+              data-shape="rectangular"
+              data-logo_alignment="left"
+              style="width: 100%;"></div>
+          </div>
+        </div>
+        <button class="auth-btn" id="walletLoginBtn">
+          <img src="/images/wallet.jpg" alt="Wallet Icon">
+          Sign in with SSI Wallet
+        </button>
+      </div>
+
+      <!-- ToDo panel -->
+      <div id="todoPanel" style="display:none">
+        <div id="userProfile"></div>
+        <h2> </h2>
+        <div class="row">
+          <input type="text" id="myInput" placeholder="Enter your task here & press add">
+          <button id="rowBtn">Add</button>
+        </div>
+        <ul id="todoList"></ul>
+      </div>
+    </div>
+  </div>
+
+<!-- QR Code Modal -->
+<div id="qrCodeModal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <span id="closeModal" class="close-btn">&times;</span>
+    <h3 id="qrHeader">Scan with your SSI Wallet</h3>
+    <div id="qrCodeSpinner">Loading QR...</div>
+    <div id="qrCodeModalContainer"></div>
+ 
+</div>
+
+
+  <script src="/ssiAuth.js" defer></script>
+</body>
+</html>
+
+
+
+
