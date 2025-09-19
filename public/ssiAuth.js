@@ -2,6 +2,7 @@
 let currentUser = null;
 let currentNonce = null;
 let currentSse = null;
+let pollingInterval = null;
 
 // ===== Utilities =====
 function decodeJwt(jwt) {
@@ -167,8 +168,11 @@ async function initiateSsiLogin() {
 
         qrSpinner.style.display = "none";
 
-        // Start SSE
+        // Start SSE listener
         startListeningForLogin(currentNonce);
+
+        // Polling fallback in case SSE missed
+        pollingInterval = setInterval(() => pollAuthStatus(currentNonce), 3000);
 
         // Reconnect SSE on focus/visibility
         document.addEventListener("visibilitychange", () => {
@@ -210,11 +214,31 @@ function startListeningForLogin(nonce) {
     };
 }
 
+// ===== Polling Fallback =====
+async function pollAuthStatus(nonce) {
+    if (!nonce) return;
+    try {
+        const res = await fetch(`/api/auth-status/${nonce}`);
+        if (!res.ok) return;
+        const status = await res.json();
+        if (status.authenticated) {
+            clearInterval(pollingInterval);
+            handleAuthenticated({ message: JSON.stringify({ code: status.code }) });
+        }
+    } catch(e) {
+        console.error("Polling error:", e);
+    }
+}
+
 // ===== Handle Authenticated =====
 async function handleAuthenticated(message) {
     if (currentSse) {
         currentSse.close();
         currentSse = null;
+    }
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
     }
 
     const inner = JSON.parse(message.message || "{}");
@@ -255,6 +279,11 @@ async function handleAuthenticated(message) {
 // ===== Logout =====
 function logout() {
     currentUser = null;
+    if (currentSse) currentSse.close();
+    currentSse = null;
+    if (pollingInterval) clearInterval(pollingInterval);
+    pollingInterval = null;
+
     document.getElementById("topbarUserInfo").innerHTML = "";
     document.getElementById("loginPanel").style.display = "block";
     document.getElementById("todoPanel").style.display = "none";
@@ -299,4 +328,19 @@ window.addEventListener("DOMContentLoaded", () => {
     if (closeBtn) closeBtn.addEventListener("click", () => {
         document.getElementById("qrCodeModal").style.display = "none";
     });
+});
+
+// ===== Service Worker =====
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js")
+      .then(reg => console.log("Service Worker registered:", reg.scope))
+      .catch(err => console.error("Service Worker registration failed:", err));
+  });
+}
+
+// ===== Close SSE on unload =====
+window.addEventListener("beforeunload", () => {
+    if (currentSse) currentSse.close();
+    if (pollingInterval) clearInterval(pollingInterval);
 });
