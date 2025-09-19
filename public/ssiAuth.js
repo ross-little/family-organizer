@@ -1,5 +1,7 @@
 // ===== Global State =====
 let currentUser = null;
+let currentNonce = null;
+let currentSse = null;
 
 // ===== Utilities =====
 function decodeJwt(jwt) {
@@ -125,7 +127,7 @@ async function initiateSsiLogin() {
     qrSpinner.style.display = "block";
     qrCodeContainer.innerHTML = "";
 
-    const nonce = crypto.randomUUID();
+    currentNonce = crypto.randomUUID();
     const state = crypto.randomUUID();
 
     const authUrl = new URL("https://uself-issuer-agent.cyclops314.gleeze.com/auth/authorize");
@@ -134,7 +136,7 @@ async function initiateSsiLogin() {
     authUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops314.gleeze.com");
     authUrl.searchParams.set("redirect_uri", "https://uself-issuer-agent.cyclops314.gleeze.com/direct_post");
     authUrl.searchParams.set("state", state);
-    authUrl.searchParams.set("nonce", nonce);
+    authUrl.searchParams.set("nonce", currentNonce);
     authUrl.searchParams.set("redirect", "false");
 
     try {
@@ -142,6 +144,7 @@ async function initiateSsiLogin() {
         const rawText = await response.text();
         const requestUri = rawText.startsWith("openid://") ? rawText : JSON.parse(rawText).request_uri;
 
+        // Render QR code
         new QRCode(qrCodeContainer, {
             text: decodeURIComponent(requestUri),
             width: 200,
@@ -151,15 +154,30 @@ async function initiateSsiLogin() {
             correctLevel: QRCode.CorrectLevel.H
         });
 
+        // Mobile deep link
         const deepLink = document.createElement("a");
         deepLink.href = requestUri;
         deepLink.textContent = "👉 Open in Wallet App (mobile)";
-        deepLink.className = "qr-mobile-link"; 
+        deepLink.className = "qr-mobile-link";
+        deepLink.target = "_blank"; 
+        deepLink.addEventListener("click", () => {
+            qrModal.style.display = "none";
+        });
         qrCodeContainer.appendChild(deepLink);
 
         qrSpinner.style.display = "none";
 
-        startListeningForLogin(nonce);
+        // Start SSE
+        startListeningForLogin(currentNonce);
+
+        // Reconnect SSE on focus/visibility
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden && !currentSse && currentNonce) startListeningForLogin(currentNonce);
+        });
+        window.addEventListener("focus", () => {
+            if (!currentSse && currentNonce) startListeningForLogin(currentNonce);
+        });
+
     } catch (error) {
         console.error("SSI login failed:", error);
         alert("Failed to initiate SSI login.");
@@ -169,47 +187,16 @@ async function initiateSsiLogin() {
 
 // ===== SSE Listener =====
 function startListeningForLogin(nonce) {
+    if (currentSse) return; // already listening
     const subscribeUrl = `https://uself-issuer-agent.cyclops314.gleeze.com/sse-server/stream-events/${nonce}`;
     const es = new EventSource(subscribeUrl);
+    currentSse = es;
 
     es.onmessage = async (event) => {
         try {
             const message = JSON.parse(event.data);
             if (message.status === "AUTHENTICATED") {
-                const inner = JSON.parse(message.message || "{}");
-                const code = inner.code;
-
-                const tokenUrl = new URL("https://uself-issuer-agent.cyclops314.gleeze.com/auth/token");
-                tokenUrl.searchParams.set("grant_type", "authorization_code");
-                tokenUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops314.gleeze.com");
-                tokenUrl.searchParams.set("code", code);
-
-                const tokenResp = await fetch(tokenUrl.toString(), {
-                    method: "POST",
-                    headers: { Accept: "application/json" },
-                    body: ""
-                });
-
-                const tokens = await tokenResp.json();
-                const access = tokens.access_token;
-                const decoded = decodeJwt(access);
-
-                const email = decoded.claims?.userInfo?.email;
-                const first = decoded.claims?.userInfo?.firstName || "";
-                const last = decoded.claims?.userInfo?.lastName || "";
-                const name = `${first} ${last}`.trim() || decoded.claims?.userInfo?.username || email;
-
-                currentUser = { email, name, picture: null };
-                showUserProfile(currentUser);
-
-                document.getElementById("loginPanel").style.display = "none";
-                document.getElementById("todoPanel").style.display = "block";
-                document.getElementById("todoTab").disabled = false;
-
-                showTasks();
-
-                es.close();
-                document.getElementById("qrCodeModal").style.display = "none";
+                handleAuthenticated(message);
             }
         } catch (err) {
             console.error("SSE error:", err);
@@ -219,9 +206,50 @@ function startListeningForLogin(nonce) {
     es.onerror = (err) => {
         console.error("SSE error:", err);
         es.close();
-        document.getElementById("qrCodeModal").style.display = "none";
-        alert("Authentication stream failed.");
+        currentSse = null;
     };
+}
+
+// ===== Handle Authenticated =====
+async function handleAuthenticated(message) {
+    if (currentSse) {
+        currentSse.close();
+        currentSse = null;
+    }
+
+    const inner = JSON.parse(message.message || "{}");
+    const code = inner.code;
+
+    const tokenUrl = new URL("https://uself-issuer-agent.cyclops314.gleeze.com/auth/token");
+    tokenUrl.searchParams.set("grant_type", "authorization_code");
+    tokenUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops314.gleeze.com");
+    tokenUrl.searchParams.set("code", code);
+
+    const tokenResp = await fetch(tokenUrl.toString(), {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        body: ""
+    });
+
+    const tokens = await tokenResp.json();
+    const access = tokens.access_token;
+    const decoded = decodeJwt(access);
+
+    const email = decoded.claims?.userInfo?.email;
+    const first = decoded.claims?.userInfo?.firstName || "";
+    const last = decoded.claims?.userInfo?.lastName || "";
+    const name = `${first} ${last}`.trim() || decoded.claims?.userInfo?.username || email;
+
+    currentUser = { email, name, picture: null };
+    showUserProfile(currentUser);
+
+    document.getElementById("loginPanel").style.display = "none";
+    document.getElementById("todoPanel").style.display = "block";
+    document.getElementById("todoTab").disabled = false;
+
+    showTasks();
+
+    document.getElementById("qrCodeModal").style.display = "none";
 }
 
 // ===== Logout =====
@@ -272,4 +300,3 @@ window.addEventListener("DOMContentLoaded", () => {
         document.getElementById("qrCodeModal").style.display = "none";
     });
 });
-
