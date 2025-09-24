@@ -5,10 +5,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Family Organizer</title>
+  <link rel="icon" href="images/icons/icon-192.png" type="image/png">
   <link rel="stylesheet" href="/styles.css">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-  <!-- Fix event source -->
   <script src="https://cdn.jsdelivr.net/npm/event-source-polyfill@1.0.25/src/eventsource.min.js"></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#4285f4">
@@ -52,6 +52,8 @@
               style="width: 100%;"></div>
           </div>
         </div>
+
+        <!-- SSI Wallet Login -->
         <button class="auth-btn" id="walletLoginBtn">
           <img src="/images/wallet.jpg" alt="Wallet Icon">
           Sign in with SSI Wallet
@@ -61,7 +63,6 @@
       <!-- ToDo panel -->
       <div id="todoPanel" style="display:none">
         <div id="userProfile"></div>
-        <h2> </h2>
         <div class="row">
           <input type="text" id="myInput" placeholder="Enter your task here & press add">
           <button id="rowBtn">Add</button>
@@ -71,20 +72,20 @@
     </div>
   </div>
 
-<!-- QR Code Modal -->
-<div id="qrCodeModal" class="modal-overlay" style="display:none;">
-  <div class="modal-content">
-    <span id="closeModal" class="close-btn">&times;</span>
-    <h3 id="qrHeader">Scan with your SSI Wallet</h3>
-    <div id="qrCodeSpinner">Loading QR...</div>
-    <div id="qrCodeModalContainer"></div>
- </div> <!-- ✅ this was missing -->
-</div>
-
+  <!-- QR Code Modal -->
+  <div id="qrCodeModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content">
+      <span id="closeModal" class="close-btn">&times;</span>
+      <h3 id="qrHeader">Scan with your SSI Wallet</h3>
+      <div id="qrCodeSpinner">Loading QR...</div>
+      <div id="qrCodeModalContainer"></div>
+    </div>
+  </div>
 
   <script src="/ssiAuth.js" defer></script>
 </body>
 </html>
+
 
 
 

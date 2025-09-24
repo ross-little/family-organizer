@@ -22,14 +22,15 @@ body {
 
 .menu-btn {
     margin: 5px 0;
-    padding: 10px;
+    padding: 12px;          /* slightly taller for easier click */
     cursor: pointer;
     border: none;
     border-radius: 6px;
     background-color: #333;
     color: #fff;
     transition: background 0.2s;
-    font-size: 14px;
+    font-size: 16px;        /* increased font for better readability */
+    text-align: left;       /* text aligned to left */
 }
 
 .menu-btn:hover {
@@ -72,8 +73,8 @@ body {
     gap: 8px;
 }
 .user-info span {
-    font-size: 13px;   /* smaller than default */
-    color: #e0e0e0;    /* optional: softer gray so it's less dominant */
+    font-size: 14px;   /* slightly bigger for readability */
+    color: #e0e0e0;
 }
 .user-info img {
     width: 32px;
@@ -82,40 +83,33 @@ body {
     margin-left: 8px;
 }
 
+/* Google sign-in height */
 #g_id_onload,
 .g_id_signin {
-  min-height: 40px;   /* match your SSI Wallet button height */
-  max-height: 40px;
-}
-
-.g_id_signin {
-  width: 100% !important;
-  max-width: 300px;   /* same as SSI Wallet */
-  box-sizing: border-box;
+  min-height: 44px;
+  max-height: 44px;
 }
 
 /* Mobile deep link only visible on small screens */
-/* Mobile-only link below QR */
 .qr-mobile-link {
-  display: none;             /* hidden on desktop */
+  display: none;             
   background-color: #007bff;
   color: #fff;
-  padding: 10px 18px;
+  padding: 12px 20px;
   border-radius: 6px;
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 500;
   text-align: center;
   cursor: pointer;
-  text-decoration: none;     /* remove underline */
+  text-decoration: none;
   transition: background-color 0.3s ease;
-  width: 100%;               /* make it wide for tap comfort */
-  max-width: 260px;          /* prevent it being too wide */
+  width: 100%;
+  max-width: 260px;
 }
 
 .qr-mobile-link:hover {
   background-color: #0056b3;
 }
-
 
 /* ===== Panels ===== */
 #loginPanel, #todoPanel {
@@ -132,24 +126,24 @@ body {
 
 .row input {
     flex: 1;
-    padding: 10px 12px;
+    padding: 12px;
     border-radius: 4px;
     border: 1px solid #ccc;
-    font-size: 14px;
+    font-size: 16px;       /* larger font for mobile usability */
     box-sizing: border-box;
-    height: 42px;
+    height: 44px;
 }
 
 .row button {
-    height: 42px;
+    height: 44px;
     margin-left: 8px;
-    padding: 0 16px;
+    padding: 0 18px;
     border: none;
     border-radius: 4px;
     background-color: #4285f4;
     color: #fff;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 16px;       /* increased font for visibility */
 }
 
 /* ===== SSI Wallet Button ===== */
@@ -160,9 +154,9 @@ body {
     justify-content: center;
     width: 100%;
     max-width: 300px;
-    margin: 10px 0;
-    padding: 10px 0;
-    font-size: 14px;
+    margin: 12px 0;
+    padding: 12px 0;
+    font-size: 16px;
     font-weight: 500;
     border: 1px solid #dadce0;
     border-radius: 4px;
@@ -202,15 +196,10 @@ body {
     color: #000;
     border-radius: 4px;
     margin-bottom: 8px;
-    font-size: 14px;
-    height: 42px;
+    font-size: 16px;      /* bigger for mobile readability */
+    height: 46px;
     box-sizing: border-box;
     transition: background 0.2s, box-shadow 0.2s;
-}
-
-#todoList li:hover {
-    background-color: #f1f3f4;
-    box-shadow: 0 1px 3px rgba(60,64,67,0.15);
 }
 
 #todoList li span {
@@ -245,7 +234,6 @@ body {
     animation: fadeIn 0.2s ease;
 }
 
-/* ===== Modal Content (Google-like card) ===== */
 .modal-content {
     position: relative;
     background-color: #fff;
@@ -259,7 +247,6 @@ body {
     font-family: "Roboto", Arial, sans-serif;
 }
 
-/* Close button */
 .close-btn {
     position: absolute;
     top: 12px;
@@ -275,7 +262,6 @@ body {
     color: #202124;
 }
 
-/* Modal Header text */
 #qrHeader {
     margin: 0;
     margin-bottom: 20px;
@@ -284,7 +270,6 @@ body {
     font-weight: 500;
 }
 
-/* Loading spinner */
 #qrCodeSpinner {
     width: 40px;
     height: 40px;
@@ -296,34 +281,16 @@ body {
     text-indent: -9999px;
 }
 
-/* QR Code container */
 #qrCodeModalContainer {
     display: flex;
-    flex-direction: column; /* stack children vertically */
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     min-height: 200px;
     margin-top: 10px;
-    gap: 12px; /* spacing between QR and link */
+    gap: 12px;
 }
 
-/* Optional cancel button */
-.cancel-btn {
-    margin-top: 20px;
-    background-color: transparent;
-    border: none;
-    color: #4285F4;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: color 0.2s;
-}
-
-.cancel-btn:hover {
-    color: #174ea6;
-}
-
-/* ===== Animations ===== */
 @keyframes fadeIn {
     from { opacity: 0; transform: scale(0.95); }
     to { opacity: 1; transform: scale(1); }
@@ -340,11 +307,11 @@ body {
         width: 60px;
     }
     .menu-btn {
-        font-size: 12px;
-        padding: 6px;
+        font-size: 14px;  /* slightly smaller to fit mobile sidebar */
+        padding: 8px;
     }
     .top-bar .title {
-        font-size: 1.2rem;
+        font-size: 1.3rem;
     }
     #qrCodeModalContainer {
         display: flex;
@@ -353,10 +320,9 @@ body {
     }
 }
 
-
-/* Show on small screens only */
 @media (max-width: 768px) {
     .qr-mobile-link {
         display: block;
     }
 }
+
