@@ -73,8 +73,9 @@ async function deleteTask(id) {
 // ===== Render Tasks =====
 async function showTasks() {
     const listContainer = document.getElementById("todoList");
-    listContainer.innerHTML = "";
+    if (!listContainer) return;
 
+    listContainer.innerHTML = "";
     const tasks = await loadTasks();
 
     tasks.forEach(task => {
@@ -82,8 +83,8 @@ async function showTasks() {
         li.className = task.checked ? "checked" : "";
         li.innerHTML = `<span>${task.text}</span><button class="delete-btn">🗑️</button>`;
 
-        li.querySelector("span").addEventListener("click", () => toggleTask(task.id, task.checked));
-        li.querySelector(".delete-btn").addEventListener("click", () => deleteTask(task.id));
+        li.querySelector("span")?.addEventListener("click", () => toggleTask(task.id, task.checked));
+        li.querySelector(".delete-btn")?.addEventListener("click", () => deleteTask(task.id));
 
         listContainer.appendChild(li);
     });
@@ -122,6 +123,8 @@ async function initiateSsiLogin() {
     const qrSpinner = document.getElementById("qrCodeSpinner");
     const qrHeader = document.getElementById("qrHeader");
 
+    if (!qrModal || !qrCodeContainer || !qrSpinner || !qrHeader) return;
+
     qrModal.style.display = "flex";
     qrHeader.style.display = "block";
     qrSpinner.style.display = "block";
@@ -144,30 +147,31 @@ async function initiateSsiLogin() {
         const rawText = await response.text();
         const requestUri = rawText.startsWith("openid://") ? rawText : JSON.parse(rawText).request_uri;
 
-        // Render QR code
-        new QRCode(qrCodeContainer, {
-            text: decodeURIComponent(requestUri),
-            width: 200,
-            height: 200,
-            colorDark: "#000000",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.H
-        });
+        // Render QR code safely
+        if (qrCodeContainer) {
+            new QRCode(qrCodeContainer, {
+                text: decodeURIComponent(requestUri),
+                width: 200,
+                height: 200,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        }
 
         // Mobile deep link
         const deepLink = document.createElement("a");
         deepLink.href = requestUri;
         deepLink.textContent = "👉 Open in Wallet App (mobile)";
         deepLink.className = "qr-mobile-link";
-        deepLink.target = "_blank"; 
+        deepLink.target = "_blank";
         deepLink.addEventListener("click", () => {
             qrModal.style.display = "none";
         });
-        qrCodeContainer.appendChild(deepLink);
+        qrCodeContainer?.appendChild(deepLink);
 
         qrSpinner.style.display = "none";
 
-        // Start SSE listener
         startListeningForLogin(currentNonce);
 
         // Reconnect SSE on focus/visibility
@@ -199,7 +203,7 @@ function startListeningForLogin(nonce) {
                 handleAuthenticated(message);
             }
         } catch (err) {
-            console.error("SSE error:", err);
+            console.error("SSE message parse error:", err);
         }
     };
 
@@ -217,50 +221,43 @@ async function handleAuthenticated(message) {
         currentSse = null;
     }
 
-    try {
-        const inner = JSON.parse(message.message || "{}");
-        const code = inner.code;
+    const inner = JSON.parse(message.message || "{}");
+    const code = inner.code;
 
-        const tokenUrl = new URL("https://uself-issuer-agent.cyclops314.gleeze.com/auth/token");
-        tokenUrl.searchParams.set("grant_type", "authorization_code");
-        tokenUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops314.gleeze.com");
-        tokenUrl.searchParams.set("code", code);
+    const tokenUrl = new URL("https://uself-issuer-agent.cyclops314.gleeze.com/auth/token");
+    tokenUrl.searchParams.set("grant_type", "authorization_code");
+    tokenUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops314.gleeze.com");
+    tokenUrl.searchParams.set("code", code);
 
-        const tokenResp = await fetch(tokenUrl.toString(), {
-            method: "POST",
-            headers: { Accept: "application/json" },
-            body: ""
-        });
+    const tokenResp = await fetch(tokenUrl.toString(), {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        body: ""
+    });
 
-        const tokens = await tokenResp.json();
-        const access = tokens.access_token;
-        const decoded = decodeJwt(access);
+    const tokens = await tokenResp.json();
+    const access = tokens.access_token;
+    const decoded = decodeJwt(access);
 
-        const email = decoded.claims?.userInfo?.email;
-        const first = decoded.claims?.userInfo?.firstName || "";
-        const last = decoded.claims?.userInfo?.lastName || "";
-        const name = `${first} ${last}`.trim() || decoded.claims?.userInfo?.username || email;
+    const email = decoded.claims?.userInfo?.email;
+    const first = decoded.claims?.userInfo?.firstName || "";
+    const last = decoded.claims?.userInfo?.lastName || "";
+    const name = `${first} ${last}`.trim() || decoded.claims?.userInfo?.username || email;
 
-        currentUser = { email, name, picture: null };
-        showUserProfile(currentUser);
+    currentUser = { email, name, picture: null };
+    showUserProfile(currentUser);
 
-        document.getElementById("loginPanel").style.display = "none";
-        document.getElementById("todoPanel").style.display = "block";
-        document.getElementById("todoTab").disabled = false;
+    document.getElementById("loginPanel").style.display = "none";
+    document.getElementById("todoPanel").style.display = "block";
+    document.getElementById("todoTab").disabled = false;
 
-        showTasks();
-        document.getElementById("qrCodeModal").style.display = "none";
-
-    } catch (err) {
-        console.error("Token exchange failed:", err);
-        alert("Failed to complete SSI login.");
-    }
+    showTasks();
+    document.getElementById("qrCodeModal").style.display = "none";
 }
 
 // ===== Logout =====
 function logout() {
     currentUser = null;
-    currentNonce = null;
     if (currentSse) currentSse.close();
     currentSse = null;
 
@@ -274,28 +271,25 @@ function logout() {
 window.addEventListener("DOMContentLoaded", () => {
     showTasks();
 
-    document.getElementById("rowBtn").addEventListener("click", addTask);
-    document.getElementById("myInput").addEventListener("keypress", (e) => {
+    document.getElementById("rowBtn")?.addEventListener("click", addTask);
+    document.getElementById("myInput")?.addEventListener("keypress", (e) => {
         if (e.key === "Enter") addTask();
     });
 
-    const walletBtn = document.getElementById("walletLoginBtn");
-    if (walletBtn) walletBtn.addEventListener("click", initiateSsiLogin);
-
-    const out = document.querySelector(".logout-btn");
-    if (out) out.addEventListener("click", logout);
+    document.getElementById("walletLoginBtn")?.addEventListener("click", initiateSsiLogin);
+    document.querySelector(".logout-btn")?.addEventListener("click", logout);
 
     const loginTab = document.getElementById("loginTab");
     const todoTab = document.getElementById("todoTab");
 
-    if (loginTab) loginTab.addEventListener("click", () => {
+    loginTab?.addEventListener("click", () => {
         document.getElementById("loginPanel").style.display = "block";
         document.getElementById("todoPanel").style.display = "none";
         loginTab.classList.add("active");
-        todoTab.classList.remove("active");
+        todoTab?.classList.remove("active");
     });
 
-    if (todoTab) todoTab.addEventListener("click", () => {
+    todoTab?.addEventListener("click", () => {
         if (!todoTab.disabled) {
             document.getElementById("loginPanel").style.display = "none";
             document.getElementById("todoPanel").style.display = "block";
@@ -304,19 +298,18 @@ window.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    const closeBtn = document.getElementById("closeModal");
-    if (closeBtn) closeBtn.addEventListener("click", () => {
+    document.getElementById("closeModal")?.addEventListener("click", () => {
         document.getElementById("qrCodeModal").style.display = "none";
     });
 });
 
 // ===== Service Worker =====
 if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/sw.js")
-            .then(reg => console.log("Service Worker registered:", reg.scope))
-            .catch(err => console.error("Service Worker registration failed:", err));
-    });
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js")
+      .then(reg => console.log("Service Worker registered:", reg.scope))
+      .catch(err => console.error("Service Worker registration failed:", err));
+  });
 }
 
 // ===== Close SSE on unload =====
