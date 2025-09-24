@@ -2,7 +2,6 @@
 let currentUser = null;
 let currentNonce = null;
 let currentSse = null;
-let pollingInterval = null;
 
 // ===== Utilities =====
 function decodeJwt(jwt) {
@@ -171,9 +170,6 @@ async function initiateSsiLogin() {
         // Start SSE listener
         startListeningForLogin(currentNonce);
 
-        // Polling fallback in case SSE missed
-        pollingInterval = setInterval(() => pollAuthStatus(currentNonce), 3000);
-
         // Reconnect SSE on focus/visibility
         document.addEventListener("visibilitychange", () => {
             if (!document.hidden && !currentSse && currentNonce) startListeningForLogin(currentNonce);
@@ -214,75 +210,59 @@ function startListeningForLogin(nonce) {
     };
 }
 
-// ===== Polling Fallback =====
-async function pollAuthStatus(nonce) {
-    if (!nonce) return;
-    try {
-        const res = await fetch(`/api/auth-status/${nonce}`);
-        if (!res.ok) return;
-        const status = await res.json();
-        if (status.authenticated) {
-            clearInterval(pollingInterval);
-            handleAuthenticated({ message: JSON.stringify({ code: status.code }) });
-        }
-    } catch(e) {
-        console.error("Polling error:", e);
-    }
-}
-
 // ===== Handle Authenticated =====
 async function handleAuthenticated(message) {
     if (currentSse) {
         currentSse.close();
         currentSse = null;
     }
-    if (pollingInterval) {
-        clearInterval(pollingInterval);
-        pollingInterval = null;
+
+    try {
+        const inner = JSON.parse(message.message || "{}");
+        const code = inner.code;
+
+        const tokenUrl = new URL("https://uself-issuer-agent.cyclops314.gleeze.com/auth/token");
+        tokenUrl.searchParams.set("grant_type", "authorization_code");
+        tokenUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops314.gleeze.com");
+        tokenUrl.searchParams.set("code", code);
+
+        const tokenResp = await fetch(tokenUrl.toString(), {
+            method: "POST",
+            headers: { Accept: "application/json" },
+            body: ""
+        });
+
+        const tokens = await tokenResp.json();
+        const access = tokens.access_token;
+        const decoded = decodeJwt(access);
+
+        const email = decoded.claims?.userInfo?.email;
+        const first = decoded.claims?.userInfo?.firstName || "";
+        const last = decoded.claims?.userInfo?.lastName || "";
+        const name = `${first} ${last}`.trim() || decoded.claims?.userInfo?.username || email;
+
+        currentUser = { email, name, picture: null };
+        showUserProfile(currentUser);
+
+        document.getElementById("loginPanel").style.display = "none";
+        document.getElementById("todoPanel").style.display = "block";
+        document.getElementById("todoTab").disabled = false;
+
+        showTasks();
+        document.getElementById("qrCodeModal").style.display = "none";
+
+    } catch (err) {
+        console.error("Token exchange failed:", err);
+        alert("Failed to complete SSI login.");
     }
-
-    const inner = JSON.parse(message.message || "{}");
-    const code = inner.code;
-
-    const tokenUrl = new URL("https://uself-issuer-agent.cyclops314.gleeze.com/auth/token");
-    tokenUrl.searchParams.set("grant_type", "authorization_code");
-    tokenUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops314.gleeze.com");
-    tokenUrl.searchParams.set("code", code);
-
-    const tokenResp = await fetch(tokenUrl.toString(), {
-        method: "POST",
-        headers: { Accept: "application/json" },
-        body: ""
-    });
-
-    const tokens = await tokenResp.json();
-    const access = tokens.access_token;
-    const decoded = decodeJwt(access);
-
-    const email = decoded.claims?.userInfo?.email;
-    const first = decoded.claims?.userInfo?.firstName || "";
-    const last = decoded.claims?.userInfo?.lastName || "";
-    const name = `${first} ${last}`.trim() || decoded.claims?.userInfo?.username || email;
-
-    currentUser = { email, name, picture: null };
-    showUserProfile(currentUser);
-
-    document.getElementById("loginPanel").style.display = "none";
-    document.getElementById("todoPanel").style.display = "block";
-    document.getElementById("todoTab").disabled = false;
-
-    showTasks();
-
-    document.getElementById("qrCodeModal").style.display = "none";
 }
 
 // ===== Logout =====
 function logout() {
     currentUser = null;
+    currentNonce = null;
     if (currentSse) currentSse.close();
     currentSse = null;
-    if (pollingInterval) clearInterval(pollingInterval);
-    pollingInterval = null;
 
     document.getElementById("topbarUserInfo").innerHTML = "";
     document.getElementById("loginPanel").style.display = "block";
@@ -332,15 +312,15 @@ window.addEventListener("DOMContentLoaded", () => {
 
 // ===== Service Worker =====
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js")
-      .then(reg => console.log("Service Worker registered:", reg.scope))
-      .catch(err => console.error("Service Worker registration failed:", err));
-  });
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js")
+            .then(reg => console.log("Service Worker registered:", reg.scope))
+            .catch(err => console.error("Service Worker registration failed:", err));
+    });
 }
 
 // ===== Close SSE on unload =====
 window.addEventListener("beforeunload", () => {
     if (currentSse) currentSse.close();
-    if (pollingInterval) clearInterval(pollingInterval);
 });
+
