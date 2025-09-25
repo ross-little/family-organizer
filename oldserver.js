@@ -7,8 +7,8 @@ import fs from "fs";
 import { X509Certificate } from "crypto"; 
 
 // ===== Configuration =====
-const DOMAIN = "family-organizer.onrender.com"; // Use "family-organizer.onrender.com" for deployment
-// const DOMAIN = "localhost:3000"; // Use this for local testing (ensure certs are in place)
+const DOMAIN = "family-organizer.onrender.com";
+// const DOMAIN = "localhost:3000";
 const PORT = process.env.PORT || 3000;
 
 // ===== Utility Function for Base64url Encoding =====
@@ -18,10 +18,7 @@ function toBase64url(base64) {
                  .replace(/=/g, "");
 }
 
-/**
- * Creates a partial JWK from a PEM-encoded P-256 Public Key by parsing the ASN.1 structure.
- * This is specific to P-256 ECDSA keys.
- */
+// Custom function to create JWK from a P-256 Public Key
 function createJwkFromP256Pem(pubKeyPem) {
     const pemContent = pubKeyPem
         .replace("-----BEGIN PUBLIC KEY-----", "")
@@ -31,7 +28,7 @@ function createJwkFromP256Pem(pubKeyPem) {
         
     const keyBuffer = Buffer.from(pemContent, 'base64');
     
-    // P-256 SPECIFIC: The raw uncompressed public key (04 || X || Y) starts at byte 26
+    // For P-256 keys, the raw uncompressed public key (04 || X || Y) starts at byte 26
     const rawKeyBytes = keyBuffer.subarray(26);
 
     // X coordinate is the 32 bytes after the leading '04' byte
@@ -43,10 +40,18 @@ function createJwkFromP256Pem(pubKeyPem) {
     const xBase64url = toBase64url(xBuffer.toString('base64'));
     const yBase64url = toBase64url(yBuffer.toString('base64'));
 
+    // Hex debug is included in return, but will only be logged, not used in final JWK
+    const xHex = xBuffer.toString('hex');
+    const yHex = yBuffer.toString('hex');
+
     return {
+        // JWK properties
+        kty: "EC",
+        crv: "P-256",
         x: xBase64url,
         y: yBase64url,
-        _debug: { xHex: xBuffer.toString('hex'), yHex: yBuffer.toString('hex') }
+        // Debug properties
+        _debug: { xHex: xHex, yHex: yHex }
     };
 }
 
@@ -56,6 +61,7 @@ const app = express();
 
 app.use(cors({ origin: "*", credentials: true }));
 app.use(bodyParser.json());
+// Ensure static files are served, which is necessary for the x5u path
 app.use(express.static(path.join(process.cwd(), "public")));
 
 // ===== Todo API (Standard - Unchanged) =====
@@ -100,62 +106,41 @@ app.get("/.well-known/did.json", (req, res) => {
         console.log("--- DID Doc Resolution Started ---");
         console.log(`[DID Resolution] Handling request for ${did} at /.well-known/did.json`);
 
-        // --- 1. Load Leaf Certificate and Extract Public Key ---
+        // --- 1. Generate JWK from Leaf Certificate ---
         const leafCertPath = path.join(process.cwd(), "public", ".well-known", "cert", "0000_cert.pem");
         const leafPem = fs.readFileSync(leafCertPath).toString('utf8');
         
         const x509 = new X509Certificate(leafPem);
         const pubKeyPem = x509.publicKey.export({ type: "spki", format: "pem" });
 
-        // --- 2. Dynamically Determine Key Parameters ---
-        let jwk = {};
+        const jwkResult = createJwkFromP256Pem(pubKeyPem);
+
+        // Separate JWK for final document and debug data
+        const jwk = {
+            kty: jwkResult.kty,
+            crv: jwkResult.crv,
+            x: jwkResult.x,
+            y: jwkResult.y,
+            // Add standard required JWK fields
+            alg: "ES256", 
+            use: "sig"
+        };
         
-        // Use asymmetricKeyType for robust checking (avoids generic 'public' string)
-        const asymmetricKeyType = x509.publicKey.asymmetricKeyType; 
-        const keyDetails = x509.publicKey.asymmetricKeyDetails;
+        console.log(`[JWK Debug] X (Base64url): ${jwk.x}`);
+        console.log(`[JWK Debug] Y (Base64url): ${jwk.y}`);
+        console.log(`[JWK Debug] X (Hex):         ${jwkResult._debug.xHex}`);
+        console.log(`[JWK Debug] Y (Hex):         ${jwkResult._debug.yHex}`);
 
-        console.log(`[Dynamic Key] Asymmetric Type: ${asymmetricKeyType}`);
 
-        // Handle ECDSA P-256
-        if (asymmetricKeyType === 'ec' && keyDetails.namedCurve === 'prime256v1') {
-            
-            console.log("[Dynamic Key] Confirmed: P-256 (prime256v1) for ECDSA");
-            
-            const jwkResult = createJwkFromP256Pem(pubKeyPem);
-
-            // Set required JWK fields for P-256
-            jwk = {
-                kty: "EC",
-                crv: "P-256", // Standard name for JWK/DID-JWK
-                x: jwkResult.x,
-                y: jwkResult.y,
-                alg: "ES256", 
-                use: "sig",
-                _debug: jwkResult._debug 
-            };
-            
-        } else if (asymmetricKeyType === 'rsaEncryption' || asymmetricKeyType === 'rsa') {
-            // FUTURE SUPPORT: Handle RSA Key extraction here
-            console.log("[Dynamic Key] Detected: RSA. JWK creation not yet implemented.");
-            throw new Error("RSA Key support is not yet implemented.");
-            
-        } else {
-            // Throw an error for truly unsupported keys
-            throw new Error(`Unsupported Key Type detected: ${asymmetricKeyType}`);
-        }
-        
-        // Remove debug property before response
-        const jwkFinal = {...jwk};
-        delete jwkFinal._debug;
-
-        console.log(`[JWK Debug] Key Type: ${jwk.kty}, Algorithm: ${jwk.alg}`);
-        
-
-        // --- 3. Define x5u URI ---
-        // Protocol must be explicitly included for the URI: https://<domain>
+        // --- 2. Define x5u URI (Pointing to the full certificate chain) ---
+        // This replaces the x5c array.
         const x5uUri = `https://${DOMAIN}/.well-known/fullpem/0001_chain.pem`;
+        
+        // Removed unnecessary certs parsing logic (from the old x5c array setup)
+        console.log(`[x5u Debug] Using x5u URI: ${x5uUri}`);
 
-        // --- 4. Assemble DID Document ---
+
+        // --- 3. Assemble DID Document ---
         const didDoc = {
             "@context": [
                 "https://www.w3.org/ns/did/v1",
@@ -167,7 +152,8 @@ app.get("/.well-known/did.json", (req, res) => {
                     id: verificationMethodId,
                     type: "X509Jwk2020",
                     controller: did,
-                    publicKeyJwk: jwkFinal, 
+                    publicKeyJwk: jwk, 
+                    // Use x5u URI instead of the x5c array
                     x5u: x5uUri 
                 }
             ],
@@ -177,7 +163,7 @@ app.get("/.well-known/did.json", (req, res) => {
 
         console.log("--- DID Doc Generation Complete ---");
         
-        // Respond with the generated document and the correct Content-Type header
+        // Respond to the client with the generated document and the correct Content-Type header
         res.set('Content-Type', 'application/did+json').json(didDoc);
 
     } catch (err) {
