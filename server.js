@@ -7,8 +7,8 @@ import fs from "fs";
 import { X509Certificate } from "crypto"; 
 
 // ===== Configuration =====
-//const DOMAIN = "family-organizer.onrender.com";
-const DOMAIN = "localhost:3000";
+const DOMAIN = "family-organizer.onrender.com";
+// const DOMAIN = "localhost:3000";
 const PORT = process.env.PORT || 3000;
 
 // ===== Utility Function for Base64url Encoding =====
