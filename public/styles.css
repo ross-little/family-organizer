@@ -1,3 +1,4 @@
+
 /* ===== General App Styles ===== */
 body {
     margin: 0;
@@ -22,15 +23,15 @@ body {
 
 .menu-btn {
     margin: 5px 0;
-    padding: 12px;          /* slightly taller for easier click */
+    padding: 12px;          
     cursor: pointer;
     border: none;
     border-radius: 6px;
     background-color: #333;
     color: #fff;
     transition: background 0.2s;
-    font-size: 16px;        /* increased font for better readability */
-    text-align: left;       /* text aligned to left */
+    font-size: 16px;        
+    text-align: left;       
 }
 
 .menu-btn:hover {
@@ -73,7 +74,7 @@ body {
     gap: 8px;
 }
 .user-info span {
-    font-size: 14px;   /* slightly bigger for readability */
+    font-size: 14px;   
     color: #e0e0e0;
 }
 .user-info img {
@@ -129,7 +130,7 @@ body {
     padding: 14px;
     border-radius: 4px;
     border: 1px solid #ccc;
-    font-size: 17px;       /* larger font for mobile usability */
+    font-size: 17px;       
     box-sizing: border-box;
     height: 44px;
 }
@@ -143,7 +144,7 @@ body {
     background-color: #4285f4;
     color: #fff;
     cursor: pointer;
-    font-size: 16px;       /* increased font for visibility */
+    font-size: 16px;       
 }
 
 /* ===== SSI Wallet Button ===== */
@@ -196,19 +197,18 @@ body {
     color: #000;
     border-radius: 4px;
     margin-bottom: 8px;
-    font-size: 16px;      /* bigger for mobile readability */
+    font-size: 16px;      
     height: 46px;
     box-sizing: border-box;
     transition: background 0.2s, box-shadow 0.2s;
 }
 
-
 #todoList li span {
-    font-weight: 800;       /* stronger bold */
-    font-size: 1.3em;       /* slightly larger */
+    font-weight: 800;       
+    font-size: 1.3em;       
     line-height: 1.5em;     
-    color: #111;            /* dark text */
-    text-shadow: 0 1px 2px rgba(0,0,0,0.1);  /* subtle shadow for clarity */
+    color: #111;            
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1);  
 }
 
 #todoList li.checked span {
@@ -306,13 +306,49 @@ body {
     100% { transform: rotate(360deg); }
 }
 
+/* ===== New DID Doc Panel ===== */
+#didPanel {
+    display: none;          
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background-color: #f9f9f9; 
+    color: #111;              
+    border-radius: 8px;
+    font-family: "Roboto", Arial, sans-serif;
+    font-size: 0.95rem;
+    line-height: 1.4em;
+    white-space: pre-wrap;   
+}
+
+#didTab {
+    margin: 5px 0;
+    padding: 12px;
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    background-color: #333;
+    color: #fff;
+    transition: background 0.2s;
+    font-size: 16px;
+    text-align: left;
+}
+
+#didTab:hover {
+    background-color: #555;
+}
+
+#didTab.active {
+    background-color: #4285f4;
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 600px) {
     .sidebar {
         width: 60px;
     }
     .menu-btn {
-        font-size: 14px;  /* slightly smaller to fit mobile sidebar */
+        font-size: 14px;  
         padding: 8px;
     }
     .top-bar .title {
@@ -340,7 +376,12 @@ body {
 
 
     #todoList li button.delete-btn {
-        font-size: 1.2em;     /* Make delete button a bit bigger too */
+        font-size: 1.2em;     
+    }
+
+    /* DID Panel adjustments for smaller screens */
+    #didPanel {
+        padding: 12px;
+        font-size: 0.9rem;
     }
 }
-

@@ -1,15 +1,21 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Family Organizer</title>
+  <title>Family Organizer 1</title>
   <link rel="icon" href="images/icons/icon-192.png" type="image/png">
   <link rel="stylesheet" href="/styles.css">
+
+  <!-- Google Sign-In -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <!-- QR Code -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+  <!-- EventSource polyfill -->
   <script src="https://cdn.jsdelivr.net/npm/event-source-polyfill@1.0.25/src/eventsource.min.js"></script>
+
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#4285f4">
 </head>
@@ -19,6 +25,7 @@
     <div class="sidebar">
       <button class="menu-btn active" id="loginTab">Login</button>
       <button class="menu-btn" id="todoTab" disabled>ToDo List</button>
+      <button class="menu-btn" id="didTab" disabled>DID Doc</button>
       <button class="menu-btn logout-btn">Logout</button>
     </div>
 
@@ -26,30 +33,31 @@
     <div class="main-content">
       <!-- Top bar -->
       <div class="top-bar">
-        <div class="title">Family Organizer</div>
+        <div class="title">Family Organizer Y</div>
         <div class="user-info" id="topbarUserInfo"></div>
       </div>
 
       <!-- Login panel -->
       <div id="loginPanel">
         <h2>Login</h2>
+
         <!-- Google Auth Section -->
         <div id="googleAuthSection">
           <div style="max-width: 300px; width: 100%; margin: 10px 0;">
             <div id="g_id_onload"
-              data-client_id="756308606831-cit2uesjqg1t61tsp7ukokifr8p75kaf.apps.googleusercontent.com"
-              data-callback="onSignIn"
-              data-auto_prompt="false"
-              data-personalization="none">
+                 data-client_id="756308606831-cit2uesjqg1t61tsp7ukokifr8p75kaf.apps.googleusercontent.com"
+                 data-callback="onSignIn"
+                 data-auto_prompt="false"
+                 data-personalization="none">
             </div>
             <div class="g_id_signin"
-              data-type="standard"
-              data-size="large"
-              data-theme="outline"
-              data-text="sign_in_with"
-              data-shape="rectangular"
-              data-logo_alignment="left"
-              style="width: 100%;"></div>
+                 data-type="standard"
+                 data-size="large"
+                 data-theme="outline"
+                 data-text="sign_in_with"
+                 data-shape="rectangular"
+                 data-logo_alignment="left"
+                 style="width: 100%;"></div>
           </div>
         </div>
 
@@ -69,6 +77,12 @@
         </div>
         <ul id="todoList"></ul>
       </div>
+
+      <!-- DID Doc panel -->
+      <div id="didPanel" style="display:none">
+        <h3>DID Document</h3>
+        <pre id="didJson">Loading DID Document...</pre>
+      </div>
     </div>
   </div>
 
@@ -82,9 +96,18 @@
     </div>
   </div>
 
-  <script src="/ssiAuth.js" defer></script>
+  <!-- Main JS Entry Point -->
+  <script type="module" src="/index.js"></script>
 </body>
 </html>
+
+
+
+
+
+
+
+
 
 
 
