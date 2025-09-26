@@ -1,3 +1,4 @@
+// Update marker: 2025-09-26 13:48
 const CACHE_NAME = "family-organizer-cache-v1";
 const urlsToCache = [
   "/",
