@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Family Organizer app with shared ToDo list",
   "main": "server.js",
+  "type": "module", 
   "scripts": {
     "start": "node server.js"
   },
