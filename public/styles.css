@@ -147,6 +147,33 @@ body {
     font-size: 16px;       
 }
 
+#debugPanel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 150px;
+  background: #111;
+  color: #0f0;
+  font-size: 12px;
+  border-top: 2px solid #444;
+  padding: 8px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+#debugPanel h4 {
+  margin: 0 0 5px 0;
+  font-size: 13px;
+  color: #ff9800;
+}
+
+#ssiDebug {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
 /* ===== SSI Wallet Button ===== */
 #walletLoginBtn {
     position: relative;

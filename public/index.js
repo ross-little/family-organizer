@@ -193,6 +193,7 @@ async function initiateSsiLogin() {
 }
 
 // ===== SSE Listener =====
+// ===== SSE Listener =====
 function startListeningForLogin(nonce) {
   if (currentSse) return;
   const subscribeUrl = `https://uself-issuer-agent.cyclops314.gleeze.com/sse-server/stream-events/${nonce}`;
@@ -202,20 +203,36 @@ function startListeningForLogin(nonce) {
   es.onmessage = async (event) => {
     try {
       const message = JSON.parse(event.data);
+
+      // 🔍 Always log the raw message
+      console.log("[SSE] Received:", message);
+
+      // Optional: show in debug panel
+      const debugBox = document.getElementById("ssiDebug");
+      if (debugBox) {
+        debugBox.textContent += `\n[${new Date().toISOString()}] ${JSON.stringify(message)}`;
+        debugBox.scrollTop = debugBox.scrollHeight;
+      }
+
+      // ✅ Still handle login success
       if (message.status === "AUTHENTICATED") {
         handleAuthenticated(message);
       }
     } catch (err) {
-      console.error("SSE message parse error:", err);
+      console.error("[SSE] Message parse error:", err, event.data);
     }
   };
 
   es.onerror = (err) => {
-    console.error("SSE error:", err);
+    console.error("[SSE] Connection error:", err);
     es.close();
     currentSse = null;
   };
 }
+
+
+
+
 
 // ===== Handle Authenticated (SSI) =====
 async function handleAuthenticated(message) {
