@@ -8,6 +8,8 @@ import { X509Certificate } from "crypto";
 import * as jose from 'jose';
 import { pemToJwk } from 'pem-jwk'; // <<< NEW IMPORT for key conversion
 
+
+
 // ===== Configuration =====
 const DOMAIN = "family-organizer.onrender.com"; 
 // const DOMAIN = "localhost:3000"; 
@@ -196,43 +198,86 @@ app.post("/api/sign-vc", async (req, res) => {
 
 // ===== DID Document Endpoint (EXISTING) =====
 app.get("/.well-known/did.json", (req, res) => {
-// ... (rest of DID Doc logic)
     try {
-        // Read the certificate file content
-        const certFileContent = fs.readFileSync(CERT_FILE_PATH, 'utf8');
-        const cert = new X509Certificate(certFileContent);
+        const did = `did:web:${DOMAIN}`;
+        const verificationMethodId = `${did}#x509-jwk-1`;
         
-        // Extract public key and create a partial JWK
-        const pubKeyPem = cert.publicKey.export({ type: 'spki', format: 'pem' });
-        const jwkPartial = createJwkFromP256Pem(pubKeyPem);
+        console.log("--- DID Doc Resolution Started ---");
+        console.log(`[DID Resolution] Handling request for ${did} at /.well-known/did.json`);
 
-        // Final JWK with x5t#S256
-        const jwkFinal = {
-            ...jwkPartial,
-            kid: VERIFICATION_METHOD_ID,
-            // Calculate x5t#S256 from the certificate's SHA-256 fingerprint
-            "x5t#S256": toBase64url(cert.fingerprint256.replace(/:/g, '')),
-        };
+        // --- 1. Load Leaf Certificate and Extract Public Key ---
+        const leafCertPath = path.join(process.cwd(), "public", ".well-known", "cert", "0000_cert.pem");
+        const leafPem = fs.readFileSync(leafCertPath).toString('utf8');
+        
+        const x509 = new X509Certificate(leafPem);
+        const pubKeyPem = x509.publicKey.export({ type: "spki", format: "pem" });
 
-        const x5uUri = `https://${DOMAIN}/certs/p256.pem`;
+        // --- 2. Dynamically Determine Key Parameters ---
+        let jwk = {};
+        
+        // Use asymmetricKeyType for robust checking (avoids generic 'public' string)
+        const asymmetricKeyType = x509.publicKey.asymmetricKeyType; 
+        const keyDetails = x509.publicKey.asymmetricKeyDetails;
 
+        console.log(`[Dynamic Key] Asymmetric Type: ${asymmetricKeyType}`);
+
+        // Handle ECDSA P-256
+        if (asymmetricKeyType === 'ec' && keyDetails.namedCurve === 'prime256v1') {
+            
+            console.log("[Dynamic Key] Confirmed: P-256 (prime256v1) for ECDSA");
+            
+            const jwkResult = createJwkFromP256Pem(pubKeyPem);
+
+            // Set required JWK fields for P-256
+            jwk = {
+                kty: "EC",
+                crv: "P-256", // Standard name for JWK/DID-JWK
+                x: jwkResult.x,
+                y: jwkResult.y,
+                alg: "ES256", 
+                use: "sig",
+                _debug: jwkResult._debug 
+            };
+            
+        } else if (asymmetricKeyType === 'rsaEncryption' || asymmetricKeyType === 'rsa') {
+            // FUTURE SUPPORT: Handle RSA Key extraction here
+            console.log("[Dynamic Key] Detected: RSA. JWK creation not yet implemented.");
+            throw new Error("RSA Key support is not yet implemented.");
+            
+        } else {
+            // Throw an error for truly unsupported keys
+            throw new Error(`Unsupported Key Type detected: ${asymmetricKeyType}`);
+        }
+        
+        // Remove debug property before response
+        const jwkFinal = {...jwk};
+        delete jwkFinal._debug;
+
+        console.log(`[JWK Debug] Key Type: ${jwk.kty}, Algorithm: ${jwk.alg}`);
+        
+
+        // --- 3. Define x5u URI ---
+        // Protocol must be explicitly included for the URI: https://<domain>
+        const x5uUri = `https://${DOMAIN}/.well-known/fullpem/0001_chain.pem`;
+
+        // --- 4. Assemble DID Document ---
         const didDoc = {
             "@context": [
                 "https://www.w3.org/ns/did/v1",
                 "https://w3id.org/security/suites/x509-jwk-2020/v1"
             ],
-            id: DID,
+            id: did,
             verificationMethod: [
                 {
-                    id: VERIFICATION_METHOD_ID,
+                    id: verificationMethodId,
                     type: "X509Jwk2020",
-                    controller: DID,
+                    controller: did,
                     publicKeyJwk: jwkFinal, 
                     x5u: x5uUri 
                 }
             ],
-            authentication: [VERIFICATION_METHOD_ID],
-            assertionMethod: [VERIFICATION_METHOD_ID]
+            authentication: [verificationMethodId],
+            assertionMethod: [verificationMethodId]
         };
 
         console.log("--- DID Doc Generation Complete ---");
