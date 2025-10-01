@@ -26,6 +26,7 @@
       <button class="menu-btn active" id="loginTab">Login</button>
       <button class="menu-btn" id="todoTab" disabled>ToDo List</button>
       <button class="menu-btn" id="didTab" disabled>DID Doc</button>
+      <button class="menu-btn" id="gaiaxTab" disabled>GAIA-X</button>
       <button class="menu-btn logout-btn">Logout</button>
     </div>
 
@@ -83,8 +84,84 @@
         <h3>DID Document</h3>
         <pre id="didJson">Loading DID Document...</pre>
       </div>
+
+      <!-- ...GAIA-X Panel... -->
+      <div id="gaiaxPanel" style="display:none;">
+          <h3>GAIA-X Onboarding: Compliance VC Issuance</h3>
+          
+          <div class="gaiax-step-group"> 
+              <h4>Step 1: Request Legal Registration Verifiable Credential</h4>
+              
+              <div class="gaiax-input-group"> 
+                  <label for="vatIdInput">VAT/Registration ID:</label>
+                  <input type="text" id="vatIdInput" value="BE0762747721" class="gaiax-input">
+              </div>
+
+              <div class="gaiax-input-group"> 
+                  <label for="subjectIdInput">Subject DID:</label>
+                  <input type="text" id="subjectIdInput" value="did:web:family-organizer.onrender.com" class="gaiax-input">
+              </div>
+
+              <button id="requestVcBtn" class="auth-btn">Request Legal Registration VC</button>
+          </div>
+
+          <div id="gaiaxNotification" style="margin-top: 15px; padding: 10px; border-radius: 4px; display: none;"></div>
+
+          <div id="vcResponseContainer" style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 20px; display: none;">
+              <h4>Step 1 VC Response:</h4>
+              <p>Raw JWT:</p>
+              <pre id="rawVcDisplay">VC JWT will appear here...</pre>
+
+              <p style="margin-top: 15px;">Decoded Payload:</p>
+              <pre id="decodedVcDisplay">Decoded VC payload will appear here...</pre>
+          </div>
+
+          <div id="step2Content" style="display:none;">
+              <h4 style="margin-top: 40px;">Step 2: Self-Issue Legal Participant & Terms & Conditions VC</h4>
+              <p>This VC uses data from the Legal Registration VC, supplemented by self-asserted attributes.</p>
+              
+              <div class="gaiax-input-group"> 
+                  <label for="legalRegIdInput">Legal Registration ID (From Step 1):</label>
+                  <input type="text" id="legalRegIdInput" class="gaiax-input" disabled>
+              </div>
+
+              <div class="gaiax-input-group"> 
+                  <label for="participantDidInput">Participant DID (From Step 1):</label>
+                  <input type="text" id="participantDidInput" class="gaiax-input" disabled>
+              </div>
+
+              <div class="gaiax-input-group"> 
+                  <label for="termsAndConditionsInput">T&C SHA-512 Hash (Self-Asserted):</label>
+                  <input type="text" id="termsAndConditionsInput" class="gaiax-input" value="1234567890abcdef..." placeholder="e.g. SHA512 hash of GAIA-X T&C">
+              </div>
+              
+              <div class="gaiax-input-group"> 
+                  <label for="hqCountryInput">Headquarters Country Code (Self-Asserted, ISO 3166-1 alpha-2):</label>
+                  <input type="text" id="hqCountryInput" class="gaiax-input" value="BE" placeholder="e.g. BE">
+              </div>
+
+              <div class="gaiax-input-group"> 
+                  <label for="legalCountryInput">Legal Address Country Code (Self-Asserted, ISO 3166-1 alpha-2):</label>
+                  <input type="text" id="legalCountryInput" class="gaiax-input" value="BE" placeholder="e.g. BE">
+              </div>
+              
+              <button id="selfIssueBtn" class="auth-btn" disabled>Self-Issue Participant & T&C VC</button>
+              
+              <div id="step2Notification" style="margin-top: 15px; padding: 10px; border-radius: 4px; display: none;"></div>
+
+              <div id="step2VcContainer" style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 20px; display: none;">
+                  <h4>Step 2 VC Response:</h4>
+                  <p>Decoded Payload:</p>
+                  <pre id="step2DecodedVcDisplay">Decoded VC payload will appear here...</pre>
+              </div>
+          </div>
+
+          <h4 style="margin-top: 20px;">Step 3: Request a GAIA-X Compliance Verifiable Credential</h4>
+          <p>This step is pending implementation.</p>
+      </div>
     </div>
   </div>
+
 
   <!-- QR Code Modal -->
   <div id="qrCodeModal" class="modal-overlay" style="display:none;">
@@ -95,6 +172,7 @@
       <div id="qrCodeModalContainer"></div>
     </div>
   </div>
+
 
   <!-- Debug Panel -->
   <div id="debugPanel">

@@ -368,6 +368,127 @@ body {
 #didTab.active {
     background-color: #4285f4;
 }
+/* ===== New GAIA-X Panel ===== */
+/* styles.css (Add this section to control GAIA-X panel layout and appearance) */
+
+/* General container for the step to control margin */
+.gaiax-step-group {
+    margin-bottom: 0px;
+}
+/* Style for the input container to control vertical spacing */
+/* This is likely the key fix: reducing the margin below the whole input area */
+.gaiax-input-group {
+    margin-bottom: 1px; 
+}
+/* Reduces space between the label and its input box */
+.gaiax-input-group label {
+    display: block; 
+    margin-bottom: 1px;
+    font-weight: 500;
+    color: #333; 
+}
+
+/* Style for the input label */
+.gaiax-label {
+    display: block;
+    margin-bottom: 1px; /* Reduces space between label and input box */
+    font-weight: 500;
+    color: #333; /* Ensuring visibility on the light #f9f9f9 panel background */
+}
+
+/* General styling for the new inputs */
+.gaiax-input {
+    width: 100%;
+    max-width: 450px; 
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 1px;
+    color: #111; /* Text color inside input box */
+    background-color: #fff; /* Background color inside input box */
+    font-size: 1em;
+    box-sizing: border-box; /* Ensures padding doesn't affect the width calculation */
+}
+
+/* Tighten up the button margin */
+#requestVcBtn {
+    margin-top: 1px; /* Space between the last input and the button */
+    /* The auth-btn class already provides general styling */
+}
+
+#gaiaxPanel {
+    display: none;          
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background-color: #f9f9f9; 
+    color: #111;              
+    border-radius: 5px;
+    font-family: "Roboto", Arial, sans-serif;
+    font-size: 0.95rem;
+    line-height: 1.4em;
+    white-space: pre-wrap;   
+}
+/* Reduce bottom margin of the main panel title (H3) */
+#gaiaxPanel h3 {
+    margin-bottom: 0px; /* Adjust this value down (e.g., from default 20px) */
+    margin-top: 0; /* Ensures no extra space above the H3 */
+}
+
+/* Reduce top margin of the step title (H4) */
+#gaiaxPanel h4 {
+    margin-top: 0px; /* Adjust this value down (e.g., from default 18px) */
+    margin-bottom: 0px; /* Adjust this value to control space above the first input */
+}
+#gaiaxTab {
+    margin: 1px 0;
+    padding: 12px;
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    background-color: #333;
+    color: #fff;
+    transition: background 0.2s;
+    font-size: 16px;
+    text-align: left;
+}
+#gaiaxTab:hover {
+    background-color: #555;
+}
+#gaiaxTab.active {
+    background-color: #4285f4;
+}
+/* Style for the VC display code blocks */
+#rawVcDisplay, #decodedVcDisplay {
+    white-space: pre-wrap;
+    word-break: break-all;
+    background-color: #2c2c2c; /* Dark background for code */
+    color: #f0f0f0; /* Light text for readability */
+    padding: 15px;
+    border-radius: 4px;
+    max-height: 250px;
+    overflow-y: scroll;
+    font-family: monospace;
+    font-size: 0.85rem;
+}
+/* New: Style for notification messages */
+#gaiaxNotification {
+    font-weight: bold;
+    color: #111;
+    border: 1px solid transparent;
+}
+.notification-success {
+    background-color: #d4edda;
+    color: #155724;
+    border-color: #c3e6cb;
+}
+.notification-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border-color: #f5c6cb;
+}
+
+/* styles.css (Add these new rules) */
+
 
 /* ===== Responsive ===== */
 @media (max-width: 600px) {

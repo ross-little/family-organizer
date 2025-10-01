@@ -5,6 +5,10 @@ import { generateDidDoc } from "./didDoc.js";
 let currentUser = null;
 let currentNonce = null;
 let currentSse = null;
+let legalRegistrationVcPayload = null; 
+let legalParticipantVcPayload = null; 
+let gaiaxShapes = null; // NEW: To store the fetched SHACL shapes
+let termsAndConditionsVcPayload = null; // <-- NEW: To store T&C VC payload
 
 // ===== Utilities =====
 function decodeJwt(jwt) {
@@ -22,6 +26,13 @@ function decodeJwt(jwt) {
     console.error("Failed to decode JWT:", e);
     return {};
   }
+}
+
+function uuidv4() {
+return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+return v.toString(16);
+  });
 }
 
 // ===== Topbar & profile =====
@@ -112,13 +123,19 @@ window.onSignIn = (response) => {
     const todoTab = document.getElementById("todoTab");
     const didTab = document.getElementById("didTab");
     const loginTab = document.getElementById("loginTab");
+    const gaiaxTab = document.getElementById("gaiaxTab");
 
     todoTab.disabled = false;
     didTab.disabled = false;
+    gaiaxTab.disabled = false;
 
     loginTab.classList.remove("active");
     todoTab.classList.add("active");
     didTab.classList.remove("active");
+    gaiaxTab.classList.remove("active");
+
+
+
 
     showTasks();
   } catch (err) {
@@ -270,17 +287,412 @@ async function handleAuthenticated(message) {
   const todoTab = document.getElementById("todoTab");
   const didTab = document.getElementById("didTab");
   const loginTab = document.getElementById("loginTab");
+  const gaiaxTab = document.getElementById("gaiaxTab");
 
+  gaiaxTab.disabled = false;
   todoTab.disabled = false;
   didTab.disabled = false;
 
   loginTab.classList.remove("active");
   todoTab.classList.add("active");
   didTab.classList.remove("active");
+  gaiaxTab.classList.remove("active");
+  
 
   showTasks();
   document.getElementById("qrCodeModal").style.display = "none";
 }
+
+// ===== GAIA-X VC Operations (Step 1: Request Legal Registration VC) =====
+
+
+// ===== GAIA-X VC Operations (Step 1: Request Legal Registration VC) =====
+async function requestGaiaxVc() {
+  // index.js (Add this constant outside the function, near the other GAIA-X constants)
+    const NOTARY_API_BASE = "https://registrationnumber.notary.lab.gaia-x.eu/development/registration-numbers/vat-id/";
+    const btn = document.getElementById("requestVcBtn");
+    const vatId = document.getElementById("vatIdInput").value;
+    const subjectDid = document.getElementById("subjectIdInput").value;
+    const notification = document.getElementById("gaiaxNotification");
+    const rawVcDisplay = document.getElementById("rawVcDisplay");
+    const decodedVcDisplay = document.getElementById("decodedVcDisplay");
+    const vcResponseContainer = document.getElementById("vcResponseContainer");
+    const debugBox = document.getElementById("ssiDebug"); // Get the debug box here
+
+
+    // Reset UI and show loading state
+    notification.style.display = "none";
+    vcResponseContainer.style.display = "none";
+    btn.disabled = true;
+    btn.textContent = "Requesting VC from GAIA-X Notary...";
+
+    try {
+        if (!vatId || !subjectDid) {
+            throw new Error("VAT ID and Subject DID must be provided.");
+        }
+        
+        // 1. Construct the API URL
+        // Use a dynamic VC ID for each request
+        const vcId = `https://family-organizer.onrender.com/credentials/${uuidv4()}`;
+        
+        const apiUrl = new URL(`${NOTARY_API_BASE}${vatId}`);
+        apiUrl.searchParams.set('vcId', vcId);
+        apiUrl.searchParams.set('subjectId', subjectDid);
+
+        console.log(`Fetching VC from: ${apiUrl.toString()}`);
+        // Log the request URL to the debug panel
+        if (debugBox) {
+            debugBox.textContent += `\n[${new Date().toISOString()}] GAIA-X Request URL: ${apiUrl.toString()}`;
+            debugBox.scrollTop = debugBox.scrollHeight;
+        }
+
+        // 2. Perform the API Request with required header
+        const response = await fetch(apiUrl.toString(), {
+            method: 'GET',
+            headers: {
+                // This header is essential for the Notary to return the JWT VC text
+                'accept': 'application/vc+jwt' 
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`API returned status ${response.status}: ${errorText.substring(0, 100)}...`);
+        }
+
+        // The response body is the raw VC JWT text
+        const rawVc = await response.text();
+        const decodedPayload = decodeJwt(rawVc); 
+                // --- LOG RAW JWT TO DEBUG PANEL (as requested) ---
+        if (debugBox) {
+            // Log the raw response, indicating it is the JWT
+            const logMessage = `GAIA-X Notary Response (Raw JWT): ${rawVc.substring(0, 15000)}...`;
+            debugBox.textContent += `\n[${new Date().toISOString()}] ${logMessage}`;
+            // Show in the debug box the decoded payload as well
+            debugBox.textContent += `\n[${new Date().toISOString()}] GAIA-X Notary Response (Decoded Payload): ${JSON.stringify(decodedPayload, null, 2)}`;
+            debugBox.scrollTop = debugBox.scrollHeight;
+        }
+        // -------------------------------------------------
+        // This is correct because the entire VC is the JWT payload
+        const credentialSubject = decodedPayload?.credentialSubject;
+
+        if (!credentialSubject) {
+            throw new Error("VC received, but missing 'credentialSubject' in payload.");
+        }
+
+        // 3. Store the VC Subject, mapping the GAIA-X field to the generic name expected by Step 2
+        legalRegistrationVcPayload = {
+            id: credentialSubject.id, 
+            // The GAIA-X payload uses "gx:vatID", we map it to "legalRegistrationId" for seamless Step 2 integration
+            legalRegistrationId: credentialSubject["gx:vatID"] || credentialSubject.vatID,
+            rawSubject: credentialSubject
+        };
+
+        console.log("Stored Legal Registration VC Subject:", legalRegistrationVcPayload);
+
+        // Success Notification
+        notification.textContent = "✅ Legal Registration VC successfully received!";
+        notification.className = "notification-success";
+        notification.style.display = "block";
+        
+        // Display VC
+        rawVcDisplay.textContent = rawVc;
+        decodedVcDisplay.textContent = JSON.stringify(decodedPayload, null, 2);
+        vcResponseContainer.style.display = "block";
+
+        // Call prefill function and reveal Step 2 UI
+        prefillStep2Inputs(legalRegistrationVcPayload); 
+
+    } catch (error) {
+        // Error Notification
+        notification.textContent = `❌ Failed to request Legal Registration VC: ${error.message}`;
+        notification.className = "notification-error";
+        notification.style.display = "block";
+        rawVcDisplay.textContent = "Error occurred: " + error.message;
+        decodedVcDisplay.textContent = "Error occurred.";
+        vcResponseContainer.style.display = "block";
+        document.getElementById("step2Content").style.display = "none"; // Hide Step 2 on error
+        console.error("VC Request failed:", error);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "Request Legal Registration VC";
+        notification.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start'      
+        });
+    }
+}
+
+// ===== GAIA-X VC Operations (Utility: Prefill Step 2) =====
+// index.js (Replace the prefillStep2Inputs function)
+
+// ===== GAIA-X VC Operations (Utility: Prefill Step 2) =====
+function prefillStep2Inputs(vcSubject) {
+    const step2Content = document.getElementById("step2Content");
+    const selfIssueBtn = document.getElementById("selfIssueBtn");
+
+    if (!step2Content) {
+        console.error("Critical Error: The HTML element for Step 2 (#step2Content) could not be found.");
+        return; 
+    }
+    
+    // 1. Legal Registration ID (Derived from Step 1 VC)
+    const registrationId = vcSubject.legalRegistrationId || "";
+    document.getElementById("legalRegIdInput").value = registrationId;
+
+    // 2. Participant DID (Derived from Step 1 VC)
+    const subjectDid = vcSubject.id || "";
+    document.getElementById("participantDidInput").value = subjectDid;
+    
+    // 3. Derived Country Code (Extracted from Step 1 VC payload)
+    // The country code is typically found in the credentialSubject as 'gx:countryCode'
+    const derivedCountryCode = vcSubject.rawSubject?.["gx:countryCode"] || ""; 
+
+    
+    // 4. Terms and Conditions Hash (TRULY Self-Asserted: Removed mock value)
+    document.getElementById("termsAndConditionsInput").value = ""; 
+    document.getElementById("termsAndConditionsInput").placeholder = "e.g., SHA-512 hash of GAIA-X T&C";
+    
+    // 5. Headquarters Country Code (Using derived country code as default)
+    document.getElementById("hqCountryInput").value = derivedCountryCode;
+    
+    // 6. Legal Address Country Code (Using derived country code as default)
+    document.getElementById("legalCountryInput").value = derivedCountryCode;
+    
+    // Make the entire Step 2 container visible
+    step2Content.style.display = "block"; 
+
+    // Enable the Step 2 button
+    if (selfIssueBtn) {
+        selfIssueBtn.disabled = false;
+    }
+    
+    // Scroll the new step into view
+    step2Content.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ===== GAIA-X VC Operations (Utility: Fetch SHACL Shapes) =====
+
+/**
+ * Fetches the GAIA-X Trust Framework SHACL shapes and extracts the 
+ * Legal Participant VC template requirements.
+ */
+async function fetchAndParseGaiaxShapes() {
+  // Corrected URL to use the one requested by the user: v1-staging
+    const SHAPES_URL = "https://registry.lab.gaia-x.eu/development/api/trusted-shape-registry/v1/shapes/jsonld/trustframework#"; 
+
+    console.log("Fetching GAIA-X SHACL shapes from staging registry...");
+    try {
+        const response = await fetch(SHAPES_URL);
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        
+        const shapes = await response.json();
+        
+        console.log("✅ GAIA-X SHACL shapes fetched successfully. Storing data.");
+        
+        // Return the full JSON object to be processed later
+        return shapes; 
+
+    } catch (error) {
+        console.error("❌ Failed to fetch or parse GAIA-X shapes:", error);
+        
+        // Fallback: This is the expected structure based on the Trust Framework documentation
+        return { 
+            requiredProperties: [
+                "gx:termsAndConditions",
+                "gx:registrationNumber",
+                "gx:headquartersAddress",
+                "gx:legalAddress"
+            ]
+        };
+    }
+}
+
+// index.js (New function)
+
+
+// ===== GAIA-X VC Operations (Step 2a: Self-Issue Terms and Conditions VC) =====
+
+// index.js
+
+// ... (Other functions like uuidv4, decodeJwt, requestGaiaxVc, prefillStep2Inputs are unchanged and correct) ...
+
+
+// ===== GAIA-X VC Operations (Step 2a: Self-Issue Terms and Conditions VC) =====
+// This runs first and calls the next step
+async function selfIssueTermsAndConditionsVc() {
+    const notification = document.getElementById("step2Notification");
+    const selfIssueBtn = document.getElementById("selfIssueBtn");
+    
+    // Disable the button and show loading for the first step
+    selfIssueBtn.disabled = true;
+    selfIssueBtn.textContent = "Issuing T&C VC...";
+    notification.style.display = "none";
+
+    try {
+        const termsAndConditionsHash = document.getElementById("termsAndConditionsInput").value.trim();
+        const participantDid = document.getElementById("participantDidInput").value;
+        
+        if (!termsAndConditionsHash) {
+            throw new Error("T&C Hash is required to issue the Terms and Conditions VC.");
+        }
+
+        // 1. Construct the VC Payload for TermsAndConditions VC
+        const vcId = `https://family-organizer.onrender.com/credentials/${uuidv4()}`;
+
+        const vcPayload = {
+            "@context": [
+                "https://www.w3.org/ns/credentials/v2",
+                "https://w3id.org/gaia-x/development#"
+            ],
+            type: ["VerifiableCredential", "gx:TermsAndConditions"],
+            id: vcId,
+            issuer: participantDid, // Self-issued
+            credentialSubject: {
+                id: participantDid,
+                "gx:hash": termsAndConditionsHash
+            }
+        };
+
+        // 2. Call the backend API to self-sign the VC
+        const response = await fetch("/api/sign-vc", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ vcPayload })
+        });
+        
+        const rawVc = await response.text();
+
+        if (!response.ok) {
+            throw new Error(`VC signing failed with status ${response.status}: ${rawVc}`);
+        }
+
+        const decodedPayload = decodeJwt(rawVc);
+
+        // Store the result globally
+        termsAndConditionsVcPayload = {
+            vcId: vcId,
+            rawVc: rawVc,
+            decoded: decodedPayload
+        };
+        
+        // **DISPLAY T&C VC PAYLOAD FIRST**
+        const step2VcContainer = document.getElementById("step2VcContainer");
+        step2VcContainer.style.display = "block";
+        document.getElementById("step2DecodedVcDisplay").textContent = 
+            `--- Terms & Conditions VC Payload ---\n${JSON.stringify(decodedPayload, null, 2)}`;
+        
+        notification.textContent = "✅ Terms & Conditions VC successfully issued. Starting Legal Participant VC...";
+        notification.className = "notification-success";
+        notification.style.display = "block";
+
+        // 3. Immediately proceed to issue the Legal Participant VC
+        
+        await selfIssueLegalParticipantVc(vcId);
+
+    } catch (error) {
+        notification.textContent = `❌ Failed to issue Terms & Conditions VC: ${error.message}`;
+        notification.className = "notification-error";
+        notification.style.display = "block";
+        console.error("T&C VC self-issue failed:", error);
+    } finally {
+        selfIssueBtn.disabled = false;
+        selfIssueBtn.textContent = "Self-Issue Participant & T&C VC"; // Reset button text
+    }
+}
+
+
+// ===== GAIA-X VC Operations (Step 2b: Self-Issue Legal Participant VC) =====
+// This runs second, using the T&C VC ID as evidence
+async function selfIssueLegalParticipantVc(tcVcId) { 
+    const notification = document.getElementById("step2Notification");
+    const selfIssueBtn = document.getElementById("selfIssueBtn");
+    
+    // Update button text for this step
+    selfIssueBtn.textContent = "Issuing Legal Participant VC...";
+
+    try {
+        const legalRegistrationId = document.getElementById("legalRegIdInput").value;
+        const participantDid = document.getElementById("participantDidInput").value;
+        const hqCountry = document.getElementById("hqCountryInput").value;
+        const legalCountry = document.getElementById("legalCountryInput").value;
+        
+        if (!legalRegistrationId || !participantDid) {
+            throw new Error("Missing required registration data from Step 1.");
+        }
+
+        // 1. Construct the VC Payload for LegalParticipant VC
+        const vcId = `https://family-organizer.onrender.com/credentials/${uuidv4()}`;
+
+        const vcPayload = {
+            "@context": [
+                "https://www.w3.org/ns/credentials/v2",
+                "https://w3id.org/gaia-x/development#"
+            ],
+            type: ["VerifiableCredential", "gx:LegalParticipant"],
+            id: vcId,
+            issuer: participantDid, // Self-issued
+            credentialSubject: {
+                id: participantDid,
+                "gx:legalRegistrationNumber": legalRegistrationId, // This is the VAT ID
+                "gx:headquartersCountry": hqCountry,
+                "gx:legalPersonCountry": legalCountry
+            },
+            evidence: { // Referencing the T&C VC
+                "gx:evidenceOf": "gx:TermsAndConditions",
+                "gx:evidenceDocument": tcVcId // Use the ID of the T&C VC just issued
+            }
+        };
+
+        // 2. Call the backend API to self-sign the VC
+        const response = await fetch("/api/sign-vc", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ vcPayload })
+        });
+        
+        const rawVc = await response.text();
+
+        if (!response.ok) {
+            throw new Error(`Legal Participant VC signing failed with status ${response.status}: ${rawVc}`);
+        }
+
+        const decodedPayload = decodeJwt(rawVc);
+
+        // Store the result globally
+        legalParticipantVcPayload = {
+            vcId: vcId,
+            rawVc: rawVc,
+            decoded: decodedPayload
+        };
+        
+        // **APPEND Legal Participant VC PAYLOAD**
+        const step2VcDisplay = document.getElementById("step2DecodedVcDisplay");
+        step2VcDisplay.textContent += 
+            `\n\n--- Legal Participant VC Payload ---\n${JSON.stringify(decodedPayload, null, 2)}`;
+        
+        notification.textContent = "🎉 Step 2 Complete! Both VCs successfully issued.";
+        notification.className = "notification-success";
+        
+    } catch (error) {
+        notification.textContent = `❌ Failed to issue Legal Participant VC: ${error.message}`;
+        notification.className = "notification-error";
+        console.error("Legal Participant VC self-issue failed:", error);
+    } 
+    // The finally block of the calling function (Step 2a) handles the button reset
+}
+
+
+// ... (The rest of your code, including the DOMContentLoaded listener, remains below) ...
+
+
+
 
 // ===== Logout =====
 window.logout = function() {
@@ -295,30 +707,38 @@ window.logout = function() {
 
   document.getElementById("todoTab").disabled = true;
   document.getElementById("didTab").disabled = true;
+  document.getElementById("gaiaxTab").disabled = true;
 };
 
 // ===== DOM Ready =====
 window.addEventListener("DOMContentLoaded", () => {
   showTasks();
 
+
+
   document.getElementById("rowBtn")?.addEventListener("click", addTask);
   document.getElementById("myInput")?.addEventListener("keypress", (e) => { if (e.key === "Enter") addTask(); });
 
   document.getElementById("walletLoginBtn")?.addEventListener("click", initiateSsiLogin);
   document.querySelector(".logout-btn")?.addEventListener("click", window.logout);
+  document.getElementById("selfIssueBtn")?.addEventListener("click", selfIssueTermsAndConditionsVc);
 
   const loginTab = document.getElementById("loginTab");
   const todoTab = document.getElementById("todoTab");
   const didTab = document.getElementById("didTab");
+  const gaiaxTab = document.getElementById("gaiaxTab");
+  const requestVcBtn = document.getElementById("requestVcBtn");
 
   loginTab?.addEventListener("click", () => {
     document.getElementById("loginPanel").style.display = "block";
     document.getElementById("todoPanel").style.display = "none";
     document.getElementById("didPanel").style.display = "none";
+    document.getElementById("gaiaxPanel").style.display = "none";
 
     loginTab.classList.add("active");
     todoTab?.classList.remove("active");
     didTab?.classList.remove("active");
+    gaiaxTab?.classList.remove("active");
   });
 
   todoTab?.addEventListener("click", () => {
@@ -326,10 +746,13 @@ window.addEventListener("DOMContentLoaded", () => {
       document.getElementById("loginPanel").style.display = "none";
       document.getElementById("todoPanel").style.display = "block";
       document.getElementById("didPanel").style.display = "none";
-
+      document.getElementById("gaiaxPanel").style.display = "none";
+      
       loginTab.classList.remove("active");
       todoTab.classList.add("active");
       didTab?.classList.remove("active");
+      gaiaxTab?.classList.remove("active");
+
     }
   });
 
@@ -338,10 +761,12 @@ window.addEventListener("DOMContentLoaded", () => {
       document.getElementById("loginPanel").style.display = "none";
       document.getElementById("todoPanel").style.display = "none";
       document.getElementById("didPanel").style.display = "block";
+      document.getElementById("gaiaxPanel").style.display = "none";
 
       loginTab.classList.remove("active");
       todoTab.classList.remove("active");
       didTab.classList.add("active");
+      gaiaxTab?.classList.remove("active");
 
       try {
         const didDoc = await generateDidDoc();
@@ -353,6 +778,33 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  gaiaxTab?.addEventListener("click", () => {
+    if (!gaiaxTab.disabled) {
+
+      // Fetch GAIA-X shapes early and store them globally (CORRECTED LOCATION FOR FETCH)
+      fetchAndParseGaiaxShapes().then(shapes => {
+        gaiaxShapes = shapes;
+      });
+
+      document.getElementById("loginPanel").style.display = "none";
+      document.getElementById("todoPanel").style.display = "none";
+      document.getElementById("didPanel").style.display = "none";
+      document.getElementById("gaiaxPanel").style.display = "block";
+      loginTab.classList.remove("active");
+      todoTab.classList.remove("active");
+      didTab.classList.remove("active");
+      gaiaxTab.classList.add("active");
+    } 
+  });
+
+  // ===== GAIA-X Registration Number VC Request Listeners =====
+  document.getElementById("requestVcBtn")?.addEventListener("click", requestGaiaxVc); 
+  
+  // ADDED MISSING LISTENER FOR STEP 2 BUTTON
+  document.getElementById("selfIssueBtn")?.addEventListener("click", selfIssueParticipantVc);
+
+
+  // ===== QR Modal Close =====
   document.getElementById("closeModal")?.addEventListener("click", () => {
     document.getElementById("qrCodeModal").style.display = "none";
   });
