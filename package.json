@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Family Organizer app with shared ToDo list",
   "main": "server.js",
-  "type": "module", 
+  "type": "module",
   "scripts": {
     "start": "node server.js"
   },
@@ -15,6 +15,7 @@
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
     "express": "^4.19.2",
+    "jose": "^6.1.0",
     "pem-jwk": "^2.0.0",
     "uuid": "^9.0.1"
   }
