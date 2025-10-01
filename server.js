@@ -36,8 +36,8 @@ async function loadSigningKey() {
             if (err.message.includes("pkcs8")) {
                 console.log("PKCS#8 import failed. Attempting conversion to JWK...");
                 
-                // Use the imported object to access the function
-                const jwk = pemJwk.pemToJwk(PRIVATE_KEY_PEM); // <<< FIX: Call pemJwk.pemToJwk()
+                // Use the imported function directly
+                const jwk = pemJwk(PRIVATE_KEY_PEM); // <<< THE FIX IS HERE
                 
                 // Add required ES256/P-256 parameters if missing
                 if (jwk.kty !== 'EC') {
@@ -54,6 +54,7 @@ async function loadSigningKey() {
         }
         
     } catch (err) {
+        // This is where your error logged.
         console.error(`CRITICAL: Failed to load Private Key from ${KEY_FILE_PATH}:`, err.message);
     }
 }
