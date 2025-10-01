@@ -6,7 +6,7 @@ import cors from "cors";
 import fs from "fs";
 import { X509Certificate } from "crypto"; 
 import * as jose from 'jose';
-import { pemToJwk } from 'pem-jwk'; // <<< NEW IMPORT for key conversion
+import pemJwk from 'pem-jwk'; // Import the default export
 
 
 
@@ -36,8 +36,8 @@ async function loadSigningKey() {
             if (err.message.includes("pkcs8")) {
                 console.log("PKCS#8 import failed. Attempting conversion to JWK...");
                 
-                // Use pemToJwk to convert the key to JWK format
-                const jwk = pemToJwk(PRIVATE_KEY_PEM);
+                // Use the imported object to access the function
+                const jwk = pemJwk.pemToJwk(PRIVATE_KEY_PEM); // <<< FIX: Call pemJwk.pemToJwk()
                 
                 // Add required ES256/P-256 parameters if missing
                 if (jwk.kty !== 'EC') {
@@ -57,6 +57,7 @@ async function loadSigningKey() {
         console.error(`CRITICAL: Failed to load Private Key from ${KEY_FILE_PATH}:`, err.message);
     }
 }
+
 
 // Start key loading immediately
 loadSigningKey(); 
