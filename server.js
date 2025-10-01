@@ -5,50 +5,71 @@ import bodyParser from "body-parser";
 import cors from "cors";
 import fs from "fs";
 import { X509Certificate } from "crypto"; 
-import * as jose from 'jose'; // <<< NEW: JOSE library for JWS/JWT signing
+import * as jose from 'jose';
+import { pemToJwk } from 'pem-jwk'; // <<< NEW IMPORT for key conversion
 
 // ===== Configuration =====
-const DOMAIN = "family-organizer.onrender.com"; // Use "family-organizer.onrender.com" for deployment
-// const DOMAIN = "localhost:3000"; // Use this for local testing (ensure certs are in place)
+const DOMAIN = "family-organizer.onrender.com"; 
+// const DOMAIN = "localhost:3000"; 
 const PORT = process.env.PORT || 3000;
 const CERT_FILE_PATH = "/etc/secrets/family-organizer.pem";
-const KEY_FILE_PATH = "/etc/secrets/family-organizer.key"; // User-specified Private Key path
+const KEY_FILE_PATH = "/etc/secrets/family-organizer.key"; 
 
-// <<< MOVED DID AND VM ID TO GLOBAL SCOPE for use in the signing API
 const DID = `did:web:${DOMAIN}`;
 const VERIFICATION_METHOD_ID = `${DID}#x509`;
-// >>>
 
-// ===== Key Loading and Initialization (NEW) =====
+// ===== Key Loading and Initialization (UPDATED) =====
 let signingKey;
-try {
-    const PRIVATE_KEY_PEM = fs.readFileSync(KEY_FILE_PATH, 'utf8');
-    // Asynchronously import the key for ES256 signing
-    (async () => {
+
+async function loadSigningKey() {
+    try {
+        const PRIVATE_KEY_PEM = fs.readFileSync(KEY_FILE_PATH, 'utf8');
+        
+        // 1. Attempt to import the key directly as PKCS#8 (the expected format by jose)
         try {
-            // jose.importPKCS8 is used to import the PEM private key for ES256
             signingKey = await jose.importPKCS8(PRIVATE_KEY_PEM, 'ES256');
-            console.log("Private Signing Key (P-256/ES256) loaded successfully.");
+            console.log("Private Signing Key (P-256/ES256) loaded successfully using PKCS#8.");
         } catch (err) {
-            console.error("CRITICAL: Failed to load P-256 Private Key for ES256 signing:", err.message);
+            // 2. If PKCS#8 import fails, it's likely a standard 'EC PRIVATE KEY' format.
+            if (err.message.includes("pkcs8")) {
+                console.log("PKCS#8 import failed. Attempting conversion to JWK...");
+                
+                // Use pemToJwk to convert the key to JWK format
+                const jwk = pemToJwk(PRIVATE_KEY_PEM);
+                
+                // Add required ES256/P-256 parameters if missing
+                if (jwk.kty !== 'EC') {
+                    throw new Error("Key is not a recognizable Elliptic Curve (EC) key.");
+                }
+                
+                // 3. Import the converted JWK
+                signingKey = await jose.importJWK(jwk, 'ES256');
+                console.log("Private Signing Key (P-256/ES256) loaded successfully after PEM-to-JWK conversion.");
+            } else {
+                // Re-throw any other unexpected error
+                throw err;
+            }
         }
-    })();
-} catch (err) {
-    console.error(`CRITICAL: Failed to read key file from ${KEY_FILE_PATH}:`, err.message);
+        
+    } catch (err) {
+        console.error(`CRITICAL: Failed to load Private Key from ${KEY_FILE_PATH}:`, err.message);
+    }
 }
+
+// Start key loading immediately
+loadSigningKey(); 
 // ===== End Key Loading =====
 
+
 // ===== Utility Function for Base64url Encoding (EXISTING) =====
+// ... (rest of toBase64url function)
 function toBase64url(base64) {
     return base64.replace(/\+/g, "-")
                  .replace(/\//g, "_")
                  .replace(/=/g, "");
 }
 
-/**
- * Creates a partial JWK from a PEM-encoded P-256 Public Key by parsing the ASN.1 structure.
- * This is specific to P-256 ECDSA keys.
- */
+// ... (rest of createJwkFromP256Pem function)
 function createJwkFromP256Pem(pubKeyPem) {
     const pemContent = pubKeyPem
         .replace("-----BEGIN PUBLIC KEY-----", "")
@@ -59,10 +80,6 @@ function createJwkFromP256Pem(pubKeyPem) {
     const keyBuffer = Buffer.from(pemContent, 'base64');
     
     // P-256 SPECIFIC: The raw P-256 public key is 64 bytes.
-    // In SPKI, it is typically wrapped in a sequence:
-    // SEQUENCE { SEQUENCE { OID ecPublicKey, OID prime256v1 }, BIT STRING { 04 || X || Y } }
-    // We target the 64 bytes starting at offset 23 (assuming a standard SPKI structure)
-    // The first byte (04) is the uncompressed point identifier and is ignored for JWK.
     const keyBytes = keyBuffer.subarray(23); 
 
     // Extract X and Y coordinates (32 bytes each for P-256)
@@ -78,13 +95,16 @@ function createJwkFromP256Pem(pubKeyPem) {
 }
 
 
-// ===== Express App Initialization =====
+// ===== Express App Initialization (EXISTING) =====
+// ... (rest of express setup code)
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(process.cwd(), "public")));
 
+
 // ===== API: ToDo List (EXISTING) =====
+// ... (rest of ToDo API endpoints)
 const todos = []; 
 app.get("/api/todos", (req, res) => {
     res.json(todos);
@@ -120,16 +140,21 @@ app.delete("/api/todos/:id", (req, res) => {
     }
 });
 
-// ===== API: Sign VC (JWS/JWT) (NEW ROUTE) =====
+
+// ===== API: Sign VC (JWS/JWT) (EXISTING) =====
 app.post("/api/sign-vc", async (req, res) => {
-    // 1. Check if the key was loaded successfully
+    // Check if the key was loaded successfully
     if (!signingKey) {
-        console.error("Signing failed: Private key not initialized.");
-        return res.status(500).send("Server initialization error: Key not available for signing.");
+        // Wait briefly for key to load if it's still being loaded (async)
+        await new Promise(resolve => setTimeout(resolve, 100));
+        if (!signingKey) {
+            console.error("Signing failed: Private key not initialized.");
+            return res.status(500).send("Server initialization error: Key not available for signing.");
+        }
     }
     
     const vcPayload = req.body.vcPayload;
-
+    // ... (rest of validation)
     if (!vcPayload || !vcPayload.issuer || !vcPayload.credentialSubject || !vcPayload.credentialSubject.id) {
         return res.status(400).send("Missing required 'vcPayload' or its 'issuer'/'credentialSubject.id' in request body.");
     }
@@ -146,7 +171,7 @@ app.post("/api/sign-vc", async (req, res) => {
             iat: now
         };
 
-        // 2. Sign the JWT using ES256
+        // Sign the JWT using ES256
         const signedJwt = await new jose.SignJWT(jwtClaims)
             .setProtectedHeader({ 
                 alg: 'ES256', 
@@ -158,7 +183,7 @@ app.post("/api/sign-vc", async (req, res) => {
             
         console.log(`Successfully signed VC with KID: ${VERIFICATION_METHOD_ID}`);
         
-        // 3. Return the raw signed JWT
+        // Return the raw signed JWT
         res.set('Content-Type', 'application/vc+jwt').send(signedJwt);
 
     } catch (err) {
@@ -168,8 +193,10 @@ app.post("/api/sign-vc", async (req, res) => {
 });
 // ===== End API: Sign VC =====
 
-// ===== DID Document Endpoint (EXISTING - UPDATED to use global constants) =====
+
+// ===== DID Document Endpoint (EXISTING) =====
 app.get("/.well-known/did.json", (req, res) => {
+// ... (rest of DID Doc logic)
     try {
         // Read the certificate file content
         const certFileContent = fs.readFileSync(CERT_FILE_PATH, 'utf8');
@@ -223,6 +250,7 @@ app.get("/.well-known/did.json", (req, res) => {
         });
     }
 });
+
 
 // ===== Serve index.html for SPA (Standard) =====
 app.get("/", (req, res) => {
