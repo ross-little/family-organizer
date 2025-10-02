@@ -387,6 +387,15 @@ body {
     font-weight: 500;
     color: #333; 
 }
+/* a subtle border or shadow like .card to visually separate steps more clearly. */
+.gaiax-step-group {
+    background-color: #fff;
+    color: #111;
+    padding: 15px;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    margin-bottom: 15px;
+}
 
 /* Style for the input label */
 .gaiax-label {

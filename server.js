@@ -7,6 +7,8 @@ import fs from "fs";
 import { X509Certificate } from "crypto"; 
 import * as jose from 'jose';
 import pemJwk from 'pem-jwk'; // Import the default export
+import crypto from "crypto";            // for crypto.randomUUID()
+
 
 
 
@@ -16,9 +18,10 @@ const DOMAIN = "family-organizer.onrender.com";
 const PORT = process.env.PORT || 3000;
 const CERT_FILE_PATH = "/etc/secrets/family-organizer.pem";
 const KEY_FILE_PATH = "/etc/secrets/family-organizer.key"; 
-
 const DID = `did:web:${DOMAIN}`;
-const VERIFICATION_METHOD_ID = `${DID}#x509`;
+const VERIFICATION_METHOD_ID = `${DID}#x509-jwk-1`;  // ✅ consistent
+console.log(`DID: ${DID}`);
+console.log(`Verification Method ID: ${VERIFICATION_METHOD_ID}`);
 
 // ===== Key Loading and Initialization (UPDATED) =====
 let signingKey;
@@ -147,54 +150,63 @@ app.delete("/api/todos/:id", (req, res) => {
 
 // ===== API: Sign VC (JWS/JWT) (EXISTING) =====
 app.post("/api/sign-vc", async (req, res) => {
-    // Check if the key was loaded successfully
-    if (!signingKey) {
-        // Wait briefly for key to load if it's still being loaded (async)
-        await new Promise(resolve => setTimeout(resolve, 100));
-        if (!signingKey) {
-            console.error("Signing failed: Private key not initialized.");
-            return res.status(500).send("Server initialization error: Key not available for signing.");
-        }
-    }
-    
-    const vcPayload = req.body.vcPayload;
-    // ... (rest of validation)
-    if (!vcPayload || !vcPayload.issuer || !vcPayload.credentialSubject || !vcPayload.credentialSubject.id) {
-        return res.status(400).send("Missing required 'vcPayload' or its 'issuer'/'credentialSubject.id' in request body.");
-    }
+  // short wait loop for signingKey if it's still initializing
+  for (let i = 0; i < 20 && !signingKey; ++i) await new Promise(r => setTimeout(r, 90));
+  if (!signingKey) {
+    console.error("Signing key not ready in /api/sign-vc");
+    return res.status(500).send("Signing key not ready");
+  }
 
-    try {
-        // Prepare JWT Claims (Payload)
-        const now = Math.floor(Date.now() / 1000);
-        const jwtClaims = {
-            ...vcPayload, // VC payload is the core claims
-            iss: vcPayload.issuer, 
-            sub: vcPayload.credentialSubject.id, 
-            nbf: now,
-            exp: now + (365 * 24 * 60 * 60), // Expires in 1 year
-            iat: now
-        };
+  const vcPayload = req.body?.vcPayload;
+  if (!vcPayload || !vcPayload.credentialSubject?.id) {
+    return res.status(400).send("Missing vcPayload or credentialSubject.id");
+  }
 
-        // Sign the JWT using ES256
-        const signedJwt = await new jose.SignJWT(jwtClaims)
-            .setProtectedHeader({ 
-                alg: 'ES256', 
-                typ: 'vc+jwt', 
-                kid: VERIFICATION_METHOD_ID 
-            })
-            .setKey(signingKey)
-            .sign();
-            
-        console.log(`Successfully signed VC with KID: ${VERIFICATION_METHOD_ID}`);
-        
-        // Return the raw signed JWT
-        res.set('Content-Type', 'application/vc+jwt').send(signedJwt);
+  try {
+    const now = Math.floor(Date.now() / 1000);
 
-    } catch (err) {
-        console.error("VC Signing Error:", err.message);
-        res.status(500).send(`Failed to sign VC: ${err.message}`);
-    }
+    // issuer: prefer explicit issuer in payload, otherwise use your DID
+    const issuer = vcPayload.issuer || DID; // DID global is did:web:...
+    const subject = vcPayload.credentialSubject.id;
+
+    // Build the JWT claim set using the VC data model top-level fields.
+    // We deep-clone incoming payload to avoid mutation.
+    const claims = JSON.parse(JSON.stringify(vcPayload));
+
+    // Remove embedded issuer (we'll put it in standard 'iss' claim to follow VC-JWT mapping)
+    delete claims.issuer;
+
+    // Ensure required JWT registered claims are present/normalized:
+    if (!claims.id && vcPayload.id) claims.id = vcPayload.id;   // keep VC id if provided
+    // set standard JWT claims (do not overwrite if caller provided)
+    if (!claims.iss) claims.iss = issuer;
+    if (!claims.sub) claims.sub = subject;
+    if (!claims.iat) claims.iat = now;
+    if (!claims.nbf) claims.nbf = now;
+    if (!claims.exp) claims.exp = now + (365 * 24 * 60 * 60); // default 1 year
+    if (!claims.jti) claims.jti = vcPayload.id || `urn:uuid:${crypto.randomUUID()}`;
+
+    // Protected header per VC-JWT spec (credential-claims-set mapping)
+    const protectedHeader = {
+      alg: "ES256",
+      typ: "vc+jwt",                  // required header media-type for VC-JWT credential claimset
+      kid: VERIFICATION_METHOD_ID     // MUST exactly match didDoc verificationMethod id
+    };
+
+    // Sign the JWT with jose
+    const signed = await new jose.SignJWT(claims)
+      .setProtectedHeader(protectedHeader)
+      .sign(signingKey);
+
+    // Respond with media-type application/vc+jwt (per W3C VC-JWT IANA registration)
+    res.set("Content-Type", "application/vc+jwt").status(200).send(signed);
+
+  } catch (err) {
+    console.error("Error signing VC:", err);
+    res.status(500).send(`Signing error: ${err?.message || err}`);
+  }
 });
+
 // ===== End API: Sign VC =====
 
 
@@ -202,7 +214,8 @@ app.post("/api/sign-vc", async (req, res) => {
 app.get("/.well-known/did.json", (req, res) => {
     try {
         const did = `did:web:${DOMAIN}`;
-        const verificationMethodId = `${did}#x509-jwk-1`;
+        const verificationMethodId = VERIFICATION_METHOD_ID;  // reuse global constant
+
         
         console.log("--- DID Doc Resolution Started ---");
         console.log(`[DID Resolution] Handling request for ${did} at /.well-known/did.json`);
