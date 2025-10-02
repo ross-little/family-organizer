@@ -6,10 +6,11 @@ import cors from "cors";
 import fs from "fs";
 import { X509Certificate } from "crypto"; 
 import * as jose from 'jose';
-import pemJwk from 'pem-jwk'; // Import the default export
+// import pemJwk from 'pem-jwk'; // Import the default export
 import crypto from "crypto";            // for crypto.randomUUID()
 
-
+import pkg from 'pem-jwk';
+const pemJwk = pkg.pem2jwk;
 
 
 // ===== Configuration =====
@@ -30,34 +31,29 @@ async function loadSigningKey() {
     try {
         const PRIVATE_KEY_PEM = fs.readFileSync(KEY_FILE_PATH, 'utf8');
         
-        // 1. Attempt to import the key directly as PKCS#8 (the expected format by jose)
+        // 1. Attempt PKCS#8 import
         try {
             signingKey = await jose.importPKCS8(PRIVATE_KEY_PEM, 'ES256');
-            console.log("Private Signing Key (P-256/ES256) loaded successfully using PKCS#8.");
+            console.log("Private Signing Key loaded successfully using PKCS#8.");
         } catch (err) {
-            // 2. If PKCS#8 import fails, it's likely a standard 'EC PRIVATE KEY' format.
             if (err.message.includes("pkcs8")) {
                 console.log("PKCS#8 import failed. Attempting conversion to JWK...");
                 
-                // Use the imported function directly
-                const jwk = pemJwk(PRIVATE_KEY_PEM); // <<< THE FIX IS HERE
-                
-                // Add required ES256/P-256 parameters if missing
-                if (jwk.kty !== 'EC') {
+                // Convert PEM -> JWK using pem-jwk
+                const jwkFromPem = pemJwk(PRIVATE_KEY_PEM);
+
+                if (jwkFromPem.kty !== 'EC') {
                     throw new Error("Key is not a recognizable Elliptic Curve (EC) key.");
                 }
-                
-                // 3. Import the converted JWK
-                signingKey = await jose.importJWK(jwk, 'ES256');
-                console.log("Private Signing Key (P-256/ES256) loaded successfully after PEM-to-JWK conversion.");
+
+                signingKey = await jose.importJWK(jwkFromPem, 'ES256');
+                console.log("Private Signing Key loaded successfully after PEM-to-JWK conversion.");
             } else {
-                // Re-throw any other unexpected error
                 throw err;
             }
         }
-        
+
     } catch (err) {
-        // This is where your error logged.
         console.error(`CRITICAL: Failed to load Private Key from ${KEY_FILE_PATH}:`, err.message);
     }
 }
