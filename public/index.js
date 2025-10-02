@@ -530,8 +530,7 @@ async function fetchAndParseGaiaxShapes() {
     }
 }
 
-// ===== GAIA-X VC Operations (Step 2a: Self-Issue Terms and Conditions VC) =====
-// ===== GAIA-X VC Operations (Step 2a: Self-Issue Terms and Conditions VC) =====
+// ===== GAIA-X VC Operations (Step 2a: Self-Issue T&C VC) =====
 async function selfIssueTermsAndConditionsVc() {
     const notification = document.getElementById("step2Notification");
     const selfIssueBtn = document.getElementById("selfIssueBtn");
@@ -542,29 +541,21 @@ async function selfIssueTermsAndConditionsVc() {
 
     try {
         const participantDid = document.getElementById("participantDidInput").value;
-        if (!participantDid) {
-            throw new Error("Participant DID is required.");
-        }
+        if (!participantDid) throw new Error("Participant DID is required.");
 
-        // GAIA-X T&C URL placeholder
-        const termsUrl = `${APP_BASE_URL}/.well-known/gaia-x/tc/tc.txt`; // could also get from input if dynamic
-
-        // 1️⃣ Fetch the T&C file
+        const termsUrl = `${APP_BASE_URL}/.well-known/gaia-x/tc/tc.txt`;
         const termsResponse = await fetch(termsUrl);
-        if (!termsResponse.ok) {
-            throw new Error(`Failed to fetch Terms & Conditions from ${termsUrl}`);
-        }
+        if (!termsResponse.ok) throw new Error(`Failed to fetch Terms & Conditions from ${termsUrl}`);
         const termsText = await termsResponse.text();
 
-        // 2️⃣ Compute SHA-512 hash using Web Crypto API
+        // Compute SHA-512 hash
         const encoder = new TextEncoder();
         const data = encoder.encode(termsText);
         const hashBuffer = await crypto.subtle.digest("SHA-512", data);
-        // Convert hash to hex string
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+        const hashHex = Array.from(new Uint8Array(hashBuffer))
+            .map(b => b.toString(16).padStart(2, "0"))
+            .join("");
 
-        // 3️⃣ Construct VC Payload
         const vcId = `${APP_BASE_URL}/credentials/${uuidv4()}`;
         const vcPayload = {
             "@context": [
@@ -573,55 +564,50 @@ async function selfIssueTermsAndConditionsVc() {
             ],
             type: ["VerifiableCredential", "gx:TermsAndConditions"],
             id: vcId,
-            issuer: participantDid, // Self-issued
+            issuer: participantDid,
             credentialSubject: {
                 id: participantDid,
                 "gx:hash": hashHex,
-                "gx:url": { 
-                    "@value": termsUrl,
-                    "@type": "xsd:anyURI"
-                }
+                "gx:url": { "@value": termsUrl, "@type": "xsd:anyURI" }
             }
         };
 
-        // Debug log
         const debugBox = document.getElementById("ssiDebug");
         if (debugBox) {
             debugBox.textContent += `\n[${new Date().toISOString()}] T&C VC Payload (Unsigned):\n${JSON.stringify(vcPayload, null, 2)}`;
             debugBox.scrollTop = debugBox.scrollHeight;
         }
 
-        // 4️⃣ Call backend API to sign the VC
+        // Sign VC
         const response = await fetch("/api/sign-vc", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ vcPayload })
         });
-
         const rawVc = await response.text();
-        if (!response.ok) {
-            throw new Error(`VC signing failed with status ${response.status}: ${rawVc}`);
-        }
+        if (!response.ok) throw new Error(`VC signing failed with status ${response.status}: ${rawVc}`);
 
         const decodedPayload = decodeJwt(rawVc);
 
-        termsAndConditionsVcPayload = {
-            vcId,
-            rawVc,
-            decoded: decodedPayload
-        };
+        // Display signed JWT and payload
+        if (debugBox) {
+            debugBox.textContent += `\n[${new Date().toISOString()}] T&C VC Signed (Raw JWT):\n${rawVc}\n[Decoded Payload]:\n${JSON.stringify(decodedPayload, null, 2)}`;
+            debugBox.scrollTop = debugBox.scrollHeight;
+        }
 
-        // Display T&C VC
+        termsAndConditionsVcPayload = { vcId, rawVc, decoded: decodedPayload };
+
+        // Update display container
         const step2VcContainer = document.getElementById("step2VcContainer");
         step2VcContainer.style.display = "block";
-        document.getElementById("step2DecodedVcDisplay").textContent = 
-            `--- Terms & Conditions VC Payload ---\n${JSON.stringify(decodedPayload, null, 2)}`;
+        document.getElementById("step2DecodedVcDisplay").textContent =
+            `--- Terms & Conditions VC ---\nRaw JWT:\n${rawVc}\n\nPayload:\n${JSON.stringify(decodedPayload, null, 2)}`;
 
         notification.textContent = "✅ Terms & Conditions VC successfully issued. Starting Legal Participant VC...";
         notification.className = "notification-success";
         notification.style.display = "block";
 
-        // 5️⃣ Immediately proceed to issue the Legal Participant VC
+        // Proceed to Legal Participant VC
         await selfIssueLegalParticipantVc(vcId);
 
     } catch (error) {
@@ -636,14 +622,11 @@ async function selfIssueTermsAndConditionsVc() {
 }
 
 
-
 // ===== GAIA-X VC Operations (Step 2b: Self-Issue Legal Participant VC) =====
-// This runs second, using the T&C VC ID as evidence
-async function selfIssueLegalParticipantVc(tcVcId) { 
+async function selfIssueLegalParticipantVc(tcVcId) {
     const notification = document.getElementById("step2Notification");
     const selfIssueBtn = document.getElementById("selfIssueBtn");
-    
-    // Update button text for this step
+
     selfIssueBtn.textContent = "Issuing Legal Participant VC...";
 
     try {
@@ -651,15 +634,9 @@ async function selfIssueLegalParticipantVc(tcVcId) {
         const participantDid = document.getElementById("participantDidInput").value;
         const hqCountry = document.getElementById("hqCountryInput").value;
         const legalCountry = document.getElementById("legalCountryInput").value;
-        
-        if (!legalRegistrationId || !participantDid) {
-            throw new Error("Missing required registration data from Step 1.");
-        }
+        if (!legalRegistrationId || !participantDid) throw new Error("Missing required registration data.");
 
-        // 1. Construct the VC Payload for LegalParticipant VC
-        // *** USED APP_BASE_URL HERE ***
         const vcId = `${APP_BASE_URL}/credentials/${uuidv4()}`;
-
         const vcPayload = {
             "@context": [
                 "https://www.w3.org/ns/credentials/v2",
@@ -667,68 +644,60 @@ async function selfIssueLegalParticipantVc(tcVcId) {
             ],
             type: ["VerifiableCredential", "gx:LegalParticipant"],
             id: vcId,
-            issuer: participantDid, // Self-issued
+            issuer: participantDid,
             credentialSubject: {
                 id: participantDid,
-                "gx:legalRegistrationNumber": legalRegistrationId, // This is the VAT ID
+                "gx:legalRegistrationNumber": legalRegistrationId,
                 "gx:headquartersCountry": hqCountry,
                 "gx:legalPersonCountry": legalCountry
             },
-            evidence: { // Referencing the T&C VC
+            evidence: {
                 "gx:evidenceOf": "gx:TermsAndConditions",
-                "gx:evidenceDocument": tcVcId // Use the ID of the T&C VC just issued
+                "gx:evidenceDocument": tcVcId
             }
         };
-        // Add code to log the constructed payload for debugging
-        console.log("Constructed Legal Participant VC Payload:", vcPayload);  
-        // Log the constructed payload to the debug panel as well
-        const debugBox = document.getElementById("ssiDebug"); 
+
+        const debugBox = document.getElementById("ssiDebug");
         if (debugBox) {
-            const logMessage = `VC Payload:\n${JSON.stringify(vcPayload, null, 2).substring(0, 15000)}...`;
+            debugBox.textContent += `\n[${new Date().toISOString()}] Legal Participant VC Payload (Unsigned):\n${JSON.stringify(vcPayload, null, 2)}`;
             debugBox.scrollTop = debugBox.scrollHeight;
         }
 
-        
-
-        // 2. Call the backend API to self-sign the VC
+        // Sign VC
         const response = await fetch("/api/sign-vc", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ vcPayload })
         });
-        
         const rawVc = await response.text();
-
-        if (!response.ok) {
-            throw new Error(`Legal Participant VC signing failed with status ${response.status}: ${rawVc}`);
-        }
+        if (!response.ok) throw new Error(`Legal Participant VC signing failed with status ${response.status}: ${rawVc}`);
 
         const decodedPayload = decodeJwt(rawVc);
 
-        // Store the result globally
-        legalParticipantVcPayload = {
-            vcId: vcId,
-            rawVc: rawVc,
-            decoded: decodedPayload
-        };
-        
-        // **APPEND Legal Participant VC PAYLOAD**
+        if (debugBox) {
+            debugBox.textContent += `\n[${new Date().toISOString()}] Legal Participant VC Signed (Raw JWT):\n${rawVc}\n[Decoded Payload]:\n${JSON.stringify(decodedPayload, null, 2)}`;
+            debugBox.scrollTop = debugBox.scrollHeight;
+        }
+
+        legalParticipantVcPayload = { vcId, rawVc, decoded: decodedPayload };
+
+        // Update display container
         const step2VcDisplay = document.getElementById("step2DecodedVcDisplay");
-        step2VcDisplay.textContent += 
-            `\n\n--- Legal Participant VC Payload ---\n${JSON.stringify(decodedPayload, null, 2)}`;
-        
+        step2VcDisplay.textContent += `\n\n--- Legal Participant VC ---\nRaw JWT:\n${rawVc}\n\nPayload:\n${JSON.stringify(decodedPayload, null, 2)}`;
+
         notification.textContent = "🎉 Step 2 Complete! Both VCs successfully issued.";
         notification.className = "notification-success";
-        
+
     } catch (error) {
         notification.textContent = `❌ Failed to issue Legal Participant VC: ${error.message}`;
         notification.className = "notification-error";
         console.error("Legal Participant VC self-issue failed:", error);
-    } 
-    // The finally block of the calling function (Step 2a) handles the button reset
+    }
 }
+
+
+
+
 
 // ===== Tem Debug =====
 function logGSI(msg) {
