@@ -660,12 +660,12 @@ async function selfIssueLegalParticipantVc(tcVcId) {
         // Add code to log the constructed payload for debugging
         console.log("Constructed Legal Participant VC Payload:", vcPayload);  
         // Log the constructed payload to the debug panel as well
-        const debugBox = document.getElementById("ssiDebug"); // Get the debug box here
+        const debugBox = document.getElementById("ssiDebug"); 
         if (debugBox) {
-            const logMessage = `VC Payload: ${vcPayload.substring(0, 15000)}...`;
-            debugBox.textContent += `\n[${new Date().toISOString()}] Constructed Legal Participant VC Payload: ${JSON.stringify(vcPayload, null, 2)}`;
+            const logMessage = `VC Payload:\n${JSON.stringify(vcPayload, null, 2).substring(0, 15000)}...`;
             debugBox.scrollTop = debugBox.scrollHeight;
-        }   
+        }
+
         
 
         // 2. Call the backend API to self-sign the VC
