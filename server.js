@@ -9,8 +9,8 @@ import * as jose from 'jose';
 // import pemJwk from 'pem-jwk'; // Import the default export
 import crypto from "crypto";            // for crypto.randomUUID()
 
-import pkg from 'pem-jwk';
-const pemJwk = pkg.pem2jwk;
+// import pkg from 'pem-jwk';
+// const pemJwk = pkg.pem2jwk;
 
 
 // ===== Configuration =====
@@ -27,34 +27,23 @@ console.log(`Verification Method ID: ${VERIFICATION_METHOD_ID}`);
 // ===== Key Loading and Initialization (UPDATED) =====
 let signingKey;
 
-async function loadSigningKey() {
+function loadSigningKey() {
     try {
-        const PRIVATE_KEY_PEM = fs.readFileSync(KEY_FILE_PATH, 'utf8');
-        
-        // 1. Attempt PKCS#8 import
-        try {
-            signingKey = await jose.importPKCS8(PRIVATE_KEY_PEM, 'ES256');
-            console.log("Private Signing Key loaded successfully using PKCS#8.");
-        } catch (err) {
-            if (err.message.includes("pkcs8")) {
-                console.log("PKCS#8 import failed. Attempting conversion to JWK...");
-                
-                // Convert PEM -> JWK using pem-jwk
-                const jwkFromPem = pemJwk(PRIVATE_KEY_PEM);
+        const pem = fs.readFileSync(KEY_FILE_PATH, 'utf8');
 
-                if (jwkFromPem.kty !== 'EC') {
-                    throw new Error("Key is not a recognizable Elliptic Curve (EC) key.");
-                }
-
-                signingKey = await jose.importJWK(jwkFromPem, 'ES256');
-                console.log("Private Signing Key loaded successfully after PEM-to-JWK conversion.");
-            } else {
-                throw err;
-            }
+        // Detect EC key (SEC1) or PKCS#8 and create crypto.KeyObject
+        if (pem.includes('BEGIN EC PRIVATE KEY')) {
+            signingKey = crypto.createPrivateKey({ key: pem, format: 'pem', type: 'sec1' });
+        } else if (pem.includes('BEGIN PRIVATE KEY')) {
+            signingKey = crypto.createPrivateKey({ key: pem, format: 'pem', type: 'pkcs8' });
+        } else {
+            throw new Error("Unsupported private key format");
         }
 
+        console.log("Private key loaded successfully.");
     } catch (err) {
         console.error(`CRITICAL: Failed to load Private Key from ${KEY_FILE_PATH}:`, err.message);
+        process.exit(1); // Exit if key fails
     }
 }
 
