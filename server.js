@@ -28,21 +28,21 @@ console.log(`Verification Method ID: ${VERIFICATION_METHOD_ID}`);
 let signingKey;
 
 function resolveSecretPath(filename) {
-  // Prefer Render / Linux absolute path
-  const renderPath = path.join("./etc/secrets", filename);
-  if (fs.existsSync(renderPath)) {
-    return renderPath;
-  }
-    // 2️⃣ New local hidden folder `.etc/secrets` (your recent change)
+  // 1️⃣ Absolute path on Render/Linux
+  const renderPath = path.join("/etc/secrets", filename);
+  if (fs.existsSync(renderPath)) return renderPath;
+
+  // 2️⃣ Local hidden folder for dev
   const dotEtcPath = path.join(process.cwd(), ".etc", "secrets", filename);
   if (fs.existsSync(dotEtcPath)) return dotEtcPath;
-  // Fallback to local repo path (./etc/secrets/)
+
+  // 3️⃣ Optional fallback inside repo
   const localPath = path.join(process.cwd(), "etc", "secrets", filename);
-  if (fs.existsSync(localPath)) {
-    return localPath;
-  }
-  throw new Error(`Secret file ${filename} not found in /etc/secrets or ./etc/secrets`);
+  if (fs.existsSync(localPath)) return localPath;
+
+  throw new Error(`Secret file ${filename} not found in /etc/secrets, .etc/secrets, or ./etc/secrets`);
 }
+
 
 function loadSigningKey() {
   try {
