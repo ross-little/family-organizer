@@ -16,7 +16,7 @@ let gaiaxShapes = null; // To store the fetched SHACL shapes
 let termsAndConditionsVcPayload = null; // To store T&C VC payload
 // === VC Proof Constants ===
 
-
+app.use(express.static(path.join(__dirname, "public")));
 
 // ===== Utilities =====
 function decodeJwt(jwt) {
@@ -534,7 +534,7 @@ async function selfIssueTermsAndConditionsVc() {
         }
 
         // GAIA-X T&C URL placeholder
-        const termsUrl = `${APP_BASE_URL}/gaia-x/tc`; // could also get from input if dynamic
+        const termsUrl = `${APP_BASE_URL}/.well-known/gaia-x/tc/tc.txt`; // could also get from input if dynamic
 
         // 1️⃣ Fetch the T&C file
         const termsResponse = await fetch(termsUrl);
