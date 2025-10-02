@@ -7,7 +7,12 @@
   <link rel="icon" href="images/icons/icon-192.png" type="image/png">
   <link rel="stylesheet" href="/styles.css">
 
+
+  
   <!-- Google Sign-In -->
+  <script>
+  window.onSignIn = (response) => { console.log('GSI callback fired', response); };
+  </script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
   <!-- QR Code -->

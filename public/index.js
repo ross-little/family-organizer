@@ -114,6 +114,9 @@ async function showTasks() {
 
 // ===== Google Login =====
 window.onSignIn = (response) => {
+  // add logging to see the  response 
+  console.log("Google Sign-In callback fired!", response);
+  
     try {
         const credential = response.credential;
         const payload = decodeJwt(credential);
