@@ -17,6 +17,13 @@ logs
 .DS_Store
 Thumbs.db
 
+# Editor directories and files
+.etc/secrets/*
+!.etc/secrets/.gitkeep
+etc/secrets/*
+!etc/secrets/.gitkeep
+
+
 # Build artifacts
 dist/
 build/

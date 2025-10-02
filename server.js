@@ -17,8 +17,8 @@ import crypto from "crypto";            // for crypto.randomUUID()
 const DOMAIN = "family-organizer.onrender.com"; 
 // const DOMAIN = "localhost:3000"; 
 const PORT = process.env.PORT || 3000;
-const CERT_FILE_PATH = "/etc/secrets/family-organizer.pem";
-const KEY_FILE_PATH = "/etc/secrets/family-organizer.key"; 
+// const CERT_FILE_PATH = "/etc/secrets/family-organizer.pem";
+// const KEY_FILE_PATH = "/etc/secrets/family-organizer.key"; 
 const DID = `did:web:${DOMAIN}`;
 const VERIFICATION_METHOD_ID = `${DID}#x509-jwk-1`;  // ✅ consistent
 console.log(`DID: ${DID}`);
@@ -27,24 +27,42 @@ console.log(`Verification Method ID: ${VERIFICATION_METHOD_ID}`);
 // ===== Key Loading and Initialization (UPDATED) =====
 let signingKey;
 
+function resolveSecretPath(filename) {
+  // Prefer Render / Linux absolute path
+  const renderPath = path.join("./etc/secrets", filename);
+  if (fs.existsSync(renderPath)) {
+    return renderPath;
+  }
+    // 2️⃣ New local hidden folder `.etc/secrets` (your recent change)
+  const dotEtcPath = path.join(process.cwd(), ".etc", "secrets", filename);
+  if (fs.existsSync(dotEtcPath)) return dotEtcPath;
+  // Fallback to local repo path (./etc/secrets/)
+  const localPath = path.join(process.cwd(), "etc", "secrets", filename);
+  if (fs.existsSync(localPath)) {
+    return localPath;
+  }
+  throw new Error(`Secret file ${filename} not found in /etc/secrets or ./etc/secrets`);
+}
+
 function loadSigningKey() {
-    try {
-        const pem = fs.readFileSync(KEY_FILE_PATH, 'utf8');
+  try {
+    const keyPath = resolveSecretPath("family-organizer.key");
+    const pem = fs.readFileSync(keyPath, "utf8");
 
-        // Detect EC key (SEC1) or PKCS#8 and create crypto.KeyObject
-        if (pem.includes('BEGIN EC PRIVATE KEY')) {
-            signingKey = crypto.createPrivateKey({ key: pem, format: 'pem', type: 'sec1' });
-        } else if (pem.includes('BEGIN PRIVATE KEY')) {
-            signingKey = crypto.createPrivateKey({ key: pem, format: 'pem', type: 'pkcs8' });
-        } else {
-            throw new Error("Unsupported private key format");
-        }
-
-        console.log("Private key loaded successfully.");
-    } catch (err) {
-        console.error(`CRITICAL: Failed to load Private Key from ${KEY_FILE_PATH}:`, err.message);
-        process.exit(1); // Exit if key fails
+    // Detect EC key (SEC1) or PKCS#8 and create crypto.KeyObject
+    if (pem.includes("BEGIN EC PRIVATE KEY")) {
+      signingKey = crypto.createPrivateKey({ key: pem, format: "pem", type: "sec1" });
+    } else if (pem.includes("BEGIN PRIVATE KEY")) {
+      signingKey = crypto.createPrivateKey({ key: pem, format: "pem", type: "pkcs8" });
+    } else {
+      throw new Error("Unsupported private key format");
     }
+
+    console.log(`✅ Private key loaded successfully from: ${keyPath}`);
+  } catch (err) {
+    console.error("❌ CRITICAL: Failed to load Private Key:", err.message);
+    process.exit(1); // Exit if key fails
+  }
 }
 
 
