@@ -323,6 +323,8 @@ async function requestGaiaxVc() {
     const NOTARY_API_BASE = "https://registrationnumber.notary.lab.gaia-x.eu/development/registration-numbers/vat-id/";
     const btn = document.getElementById("requestVcBtn");
     const vatId = document.getElementById("vatIdInput").value;
+
+    
     const subjectDid = document.getElementById("subjectIdInput").value;
     const notification = document.getElementById("gaiaxNotification");
     const rawVcDisplay = document.getElementById("rawVcDisplay");
@@ -330,6 +332,12 @@ async function requestGaiaxVc() {
     const vcResponseContainer = document.getElementById("vcResponseContainer");
     const debugBox = document.getElementById("ssiDebug"); // Get the debug box here
 
+  console.log("VAT ID:", vatId, "Subject DID:", subjectDid);
+
+  if (!vatId || !subjectDid) {
+    alert("Missing input fields in the DOM! Check index.html or panel visibility.");
+    return;
+  }
 
     // Reset UI and show loading state
     notification.style.display = "none";
@@ -435,47 +443,52 @@ async function requestGaiaxVc() {
 
 // ===== GAIA-X VC Operations (Utility: Prefill Step 2) =====
 function prefillStep2Inputs(vcSubject) {
-    const step2Content = document.getElementById("step2Content");
-    const selfIssueBtn = document.getElementById("selfIssueBtn");
+  const step2Content = document.getElementById("step2Content");
+  const selfIssueBtn = document.getElementById("selfIssueBtn");
 
-    if (!step2Content) {
-        console.error("Critical Error: The HTML element for Step 2 (#step2Content) could not be found.");
-        return; 
+  if (!step2Content) {
+    console.error("❌ Step 2 container (#step2Content) not found in DOM.");
+    return;
+  }
+
+  // Extract values from VC subject
+  const registrationId = vcSubject?.legalRegistrationId || "";
+  const subjectDid = vcSubject?.id || "";
+  const derivedCountryCode = vcSubject?.rawSubject?.["gx:countryCode"] || "";
+
+  // Helper to safely set input values
+  function safeSet(id, value, placeholder) {
+    const el = document.getElementById(id);
+    if (!el) {
+      console.warn(`⚠️ Could not find element #${id} in DOM.`);
+      return;
     }
-    
-    // 1. Legal Registration ID (Derived from Step 1 VC)
-    const registrationId = vcSubject.legalRegistrationId || "";
-    document.getElementById("legalRegIdInput").value = registrationId;
+    if (value !== undefined && value !== null) el.value = value;
+    if (placeholder) el.placeholder = placeholder;
+  }
 
-    // 2. Participant DID (Derived from Step 1 VC)
-    const subjectDid = vcSubject.id || "";
-    document.getElementById("participantDidInput").value = subjectDid;
-    
-    // 3. Derived Country Code (Extracted from Step 1 VC payload)
-    // The country code is typically found in the credentialSubject as 'gx:countryCode'
-    const derivedCountryCode = vcSubject.rawSubject?.["gx:countryCode"] || ""; 
+  // Fill inputs
+  safeSet("legalRegIdInput", registrationId);
+  safeSet("participantDidInput", subjectDid);
+  safeSet("termsAndConditionsInput", "", "e.g., SHA-512 hash of GAIA-X T&C");
+  safeSet("hqCountryInput", derivedCountryCode);
+  safeSet("legalCountryInput", derivedCountryCode);
 
-    
-    // 4. Terms and Conditions Hash (TRULY Self-Asserted: Removed mock value)
-    document.getElementById("termsAndConditionsInput").value = ""; 
-    document.getElementById("termsAndConditionsInput").placeholder = "e.g., SHA-512 hash of GAIA-X T&C";
-    
-    // 5. Headquarters Country Code (Using derived country code as default)
-    document.getElementById("hqCountryInput").value = derivedCountryCode;
-    
-    // 6. Legal Address Country Code (Using derived country code as default)
-    document.getElementById("legalCountryInput").value = derivedCountryCode;
-    
-    // Make the entire Step 2 container visible
-    step2Content.style.display = "block"; 
+  // Show Step 2 container
+  step2Content.style.display = "block";
 
-    // Enable the Step 2 button
-    if (selfIssueBtn) {
-        selfIssueBtn.disabled = false;
-    }
-    
-    // Scroll the new step into view
-    step2Content.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Enable button
+  if (selfIssueBtn) {
+    selfIssueBtn.disabled = false;
+  } else {
+    console.warn("⚠️ Step 2 button (#selfIssueBtn) not found in DOM.");
+  }
+
+  console.log("✅ Step 2 prefilled with:", {
+    registrationId,
+    subjectDid,
+    derivedCountryCode
+  });
 }
 
 // ===== GAIA-X VC Operations (Utility: Fetch SHACL Shapes) =====
