@@ -518,28 +518,41 @@ async function fetchAndParseGaiaxShapes() {
 }
 
 // ===== GAIA-X VC Operations (Step 2a: Self-Issue Terms and Conditions VC) =====
-// This runs first and calls the next step
+// ===== GAIA-X VC Operations (Step 2a: Self-Issue Terms and Conditions VC) =====
 async function selfIssueTermsAndConditionsVc() {
     const notification = document.getElementById("step2Notification");
     const selfIssueBtn = document.getElementById("selfIssueBtn");
     
-    // Disable the button and show loading for the first step
     selfIssueBtn.disabled = true;
     selfIssueBtn.textContent = "Issuing T&C VC...";
     notification.style.display = "none";
 
     try {
-        const termsAndConditionsHash = document.getElementById("termsAndConditionsInput").value.trim();
         const participantDid = document.getElementById("participantDidInput").value;
-        
-        if (!termsAndConditionsHash) {
-            throw new Error("T&C Hash is required to issue the Terms and Conditions VC.");
+        if (!participantDid) {
+            throw new Error("Participant DID is required.");
         }
 
-        // 1. Construct the VC Payload for TermsAndConditions VC
-        // *** USED APP_BASE_URL HERE ***
-        const vcId = `${APP_BASE_URL}/credentials/${uuidv4()}`;
+        // GAIA-X T&C URL placeholder
+        const termsUrl = `${APP_BASE_URL}/gaia-x/tc`; // could also get from input if dynamic
 
+        // 1️⃣ Fetch the T&C file
+        const termsResponse = await fetch(termsUrl);
+        if (!termsResponse.ok) {
+            throw new Error(`Failed to fetch Terms & Conditions from ${termsUrl}`);
+        }
+        const termsText = await termsResponse.text();
+
+        // 2️⃣ Compute SHA-512 hash using Web Crypto API
+        const encoder = new TextEncoder();
+        const data = encoder.encode(termsText);
+        const hashBuffer = await crypto.subtle.digest("SHA-512", data);
+        // Convert hash to hex string
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+
+        // 3️⃣ Construct VC Payload
+        const vcId = `${APP_BASE_URL}/credentials/${uuidv4()}`;
         const vcPayload = {
             "@context": [
                 "https://www.w3.org/ns/credentials/v2",
@@ -550,57 +563,52 @@ async function selfIssueTermsAndConditionsVc() {
             issuer: participantDid, // Self-issued
             credentialSubject: {
                 id: participantDid,
-                "gx:hash": termsAndConditionsHash,
-                // *** USED APP_BASE_URL HERE ***
+                "gx:hash": hashHex,
                 "gx:url": { 
-                    "@value": `${APP_BASE_URL}/gaia-x/tc`, // Placeholder URL
-                    "@type": "xsd:anyURI" 
+                    "@value": termsUrl,
+                    "@type": "xsd:anyURI"
                 }
             }
         };
-        // === NEW CODE: LOGGING VC BODY TO DEBUG BOX (before signing) ===
+
+        // Debug log
         const debugBox = document.getElementById("ssiDebug");
         if (debugBox) {
-            const logMessage = `T&C VC Payload (Unsigned):\n${JSON.stringify(vcPayload, null, 2)}`;
-            debugBox.textContent += `\n[${new Date().toISOString()}] ${logMessage}`;
+            debugBox.textContent += `\n[${new Date().toISOString()}] T&C VC Payload (Unsigned):\n${JSON.stringify(vcPayload, null, 2)}`;
             debugBox.scrollTop = debugBox.scrollHeight;
         }
 
-        // 2. Call the backend API to self-sign the VC
+        // 4️⃣ Call backend API to sign the VC
         const response = await fetch("/api/sign-vc", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ vcPayload })
         });
-        
-        const rawVc = await response.text();
 
+        const rawVc = await response.text();
         if (!response.ok) {
             throw new Error(`VC signing failed with status ${response.status}: ${rawVc}`);
         }
 
         const decodedPayload = decodeJwt(rawVc);
 
-        // Store the result globally
         termsAndConditionsVcPayload = {
-            vcId: vcId,
-            rawVc: rawVc,
+            vcId,
+            rawVc,
             decoded: decodedPayload
         };
-        
-        // **DISPLAY T&C VC PAYLOAD FIRST**
+
+        // Display T&C VC
         const step2VcContainer = document.getElementById("step2VcContainer");
         step2VcContainer.style.display = "block";
         document.getElementById("step2DecodedVcDisplay").textContent = 
             `--- Terms & Conditions VC Payload ---\n${JSON.stringify(decodedPayload, null, 2)}`;
-        
+
         notification.textContent = "✅ Terms & Conditions VC successfully issued. Starting Legal Participant VC...";
         notification.className = "notification-success";
         notification.style.display = "block";
 
-        // 3. Immediately proceed to issue the Legal Participant VC
+        // 5️⃣ Immediately proceed to issue the Legal Participant VC
         await selfIssueLegalParticipantVc(vcId);
 
     } catch (error) {
@@ -610,9 +618,10 @@ async function selfIssueTermsAndConditionsVc() {
         console.error("T&C VC self-issue failed:", error);
     } finally {
         selfIssueBtn.disabled = false;
-        selfIssueBtn.textContent = "Self-Issue Participant & T&C VC"; // Reset button text
+        selfIssueBtn.textContent = "Self-Issue Participant & T&C VC";
     }
 }
+
 
 
 // ===== GAIA-X VC Operations (Step 2b: Self-Issue Legal Participant VC) =====
