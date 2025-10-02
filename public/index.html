@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Family Organizer 1</title>
+  <title>Family Organizer X</title>
   <link rel="icon" href="images/icons/icon-192.png" type="image/png">
-  <link rel="stylesheet" href="/styles.css">
 
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="./styles.css">
 
-  
   <!-- Google Sign-In -->
   <script>
-  window.onSignIn = (response) => { console.log('GSI callback fired', response); };
+    window.onSignIn = (response) => { console.log('GSI callback fired', response); };
   </script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
@@ -21,7 +21,8 @@
   <!-- EventSource polyfill -->
   <script src="https://cdn.jsdelivr.net/npm/event-source-polyfill@1.0.25/src/eventsource.min.js"></script>
 
-  <link rel="manifest" href="/manifest.json">
+  <!-- Manifest & Theme -->
+  <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#4285f4">
 </head>
 <body>
@@ -43,39 +44,37 @@
         <div class="user-info" id="topbarUserInfo"></div>
       </div>
 
-      <!-- Login panel -->
+      <!-- Panels -->
       <div id="loginPanel">
         <h2>Login</h2>
 
         <!-- Google Auth Section -->
-        <div id="googleAuthSection">
-          <div style="max-width: 300px; width: 100%; margin: 10px 0;">
-            <div id="g_id_onload"
-                 data-client_id="756308606831-cit2uesjqg1t61tsp7ukokifr8p75kaf.apps.googleusercontent.com"
-                 data-callback="onSignIn"
-                 data-auto_prompt="false"
-                 data-personalization="none">
-            </div>
-            <div class="g_id_signin"
-                 data-type="standard"
-                 data-size="large"
-                 data-theme="outline"
-                 data-text="sign_in_with"
-                 data-shape="rectangular"
-                 data-logo_alignment="left"
-                 style="width: 100%;"></div>
+        <div id="googleAuthSection" style="max-width: 300px; width: 100%; margin: 10px 0;">
+          <div id="g_id_onload"
+               data-client_id="756308606831-cit2uesjqg1t61tsp7ukokifr8p75kaf.apps.googleusercontent.com"
+               data-callback="onSignIn"
+               data-auto_prompt="false"
+               data-personalization="none">
+          </div>
+          <div class="g_id_signin"
+               data-type="standard"
+               data-size="large"
+               data-theme="outline"
+               data-text="sign_in_with"
+               data-shape="rectangular"
+               data-logo_alignment="left"
+               style="width: 100%;">
           </div>
         </div>
 
         <!-- SSI Wallet Login -->
         <button class="auth-btn" id="walletLoginBtn">
-          <img src="/images/wallet.jpg" alt="Wallet Icon">
+          <img src="./images/wallet.jpg" alt="Wallet Icon">
           Sign in with SSI Wallet
         </button>
       </div>
 
-      <!-- ToDo panel -->
-      <div id="todoPanel" style="display:none">
+      <div id="todoPanel" style="display:none;">
         <div id="userProfile"></div>
         <div class="row">
           <input type="text" id="myInput" placeholder="Enter your task here & press add">
@@ -84,17 +83,15 @@
         <ul id="todoList"></ul>
       </div>
 
-      <!-- DID Doc panel -->
-      <div id="didPanel" style="display:none">
+      <div id="didPanel" style="display:none;">
         <h3>DID Document</h3>
         <pre id="didJson">Loading DID Document...</pre>
       </div>
 
-      <!-- GAIA-X Panel -->
-      <div id="gaiaxPanel" class="panel" style="display:none;">
+      <div id="gaiaxPanel" style="display:none;">
         <h3>GAIA-X Onboarding: Compliance VC Issuance</h3>
 
-        <!-- Step 1: Request Legal Registration VC -->
+        <!-- Step 1 -->
         <div class="gaiax-step card">
           <h4>Step 1: Request Legal Registration VC</h4>
           <div class="gaiax-input-group">
@@ -118,7 +115,7 @@
           </div>
         </div>
 
-        <!-- Step 2: Self-Issue Legal Participant VC -->
+        <!-- Step 2 -->
         <div id="step2Content" class="gaiax-step card" style="display:none;">
           <h4>Step 2: Self-Issue Participant & T&C VC</h4>
           <p>Use data from Step 1 VC and supplement with self-asserted attributes.</p>
@@ -160,7 +157,6 @@
           <p>Pending implementation.</p>
         </div>
       </div>
-
     </div>
   </div>
 
@@ -173,7 +169,9 @@
       <div id="qrCodeModalContainer"></div>
     </div>
   </div>
-
+  
+  <!-- GSI Debug Output -->
+  <div id="gsiDebug" style="color: lime; font-weight: bold; margin:10px;"></div>
 
   <!-- Debug Panel -->
   <div id="debugPanel">
@@ -182,9 +180,10 @@
   </div>
 
   <!-- Main JS Entry Point -->
-  <script type="module" src="/index.js"></script>
+  <script type="module" src="./index.js"></script>
 </body>
 </html>
+
 
 
 

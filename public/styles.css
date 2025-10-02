@@ -89,6 +89,17 @@ body {
 .g_id_signin {
   min-height: 44px;
   max-height: 44px;
+      display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;       /* stretch full container width */
+}
+/* Fix inner div spacing for GSI */
+.g_id_signin > div {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
 }
 
 /* Mobile deep link only visible on small screens */
@@ -180,6 +191,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    min-height: 44px;            /* same as Google button */
     width: 100%;
     max-width: 300px;
     margin: 12px 0;
@@ -510,6 +522,10 @@ body {
     }
     .top-bar .title {
         font-size: 1.3rem;
+    }
+    .g_id_signin, #walletLoginBtn {
+        font-size: 14px !important;
+        min-height: 40px !important;
     }
     #qrCodeModalContainer {
         display: flex;

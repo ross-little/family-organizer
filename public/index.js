@@ -114,18 +114,28 @@ async function showTasks() {
 
 // ===== Google Login =====
 window.onSignIn = (response) => {
-  // add logging to see the  response 
-  console.log("Google Sign-In callback fired!", response);
-  
+    console.log("=== Google Sign-In callback fired! ===");
+    console.log("Full response:", response);
+
+    if (!response || !response.credential) {
+        console.warn("⚠️ No credential received. Likely an origin/client_id mismatch or blocked request.");
+        return;
+    }
+
     try {
         const credential = response.credential;
+        console.log("Credential JWT received. Length:", credential.length);
+
         const payload = decodeJwt(credential);
+        console.log("Decoded JWT payload:", payload);
 
         const email = payload.email;
         const name = payload.name || payload.given_name || "";
         const picture = payload.picture || "";
 
-        currentUser = { name, email, picture };
+        const currentUser = { name, email, picture };
+        console.log("Current user object:", currentUser);
+
         showUserProfile(currentUser);
 
         document.getElementById("loginPanel").style.display = "none";
@@ -150,6 +160,7 @@ window.onSignIn = (response) => {
         console.error("Google login error:", err);
     }
 };
+
 
 // ===== SSI Wallet Login =====
 async function initiateSsiLogin() {
@@ -697,6 +708,12 @@ async function selfIssueLegalParticipantVc(tcVcId) {
     // The finally block of the calling function (Step 2a) handles the button reset
 }
 
+// ===== Tem Debug =====
+function logGSI(msg) {
+    console.log(msg);
+    const el = document.getElementById('gsiDebug');
+    if(el) el.textContent = msg;
+}
 
 // ===== Logout =====
 window.logout = function() {
