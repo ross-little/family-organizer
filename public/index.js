@@ -16,7 +16,7 @@ let gaiaxShapes = null; // To store the fetched SHACL shapes
 let termsAndConditionsVcPayload = null; // To store T&C VC payload
 // === VC Proof Constants ===
 
-app.use(express.static(path.join(__dirname, "public")));
+// app.use(express.static(path.join(__dirname, "public")));
 
 // ===== Utilities =====
 function decodeJwt(jwt) {
