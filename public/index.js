@@ -629,7 +629,7 @@ async function verifyVpJwt(vpJwt) {
         // Example: did:web:example.com:path -> https://example.com/path/did.json
         const didIdentifier = issuerDid.substring("did:web:".length);
         // Replace ':' with '/' for path segments as per did:web spec, and append /did.json
-        const didDocUrl = `https://${didIdentifier.replace(/:/g, '/')}/did.json`;
+        const didDocUrl = `https://${didIdentifier.replace(/:/g, '/')}/.wellknown/did.json`;
 
         console.log(`DEBUG: Step 4: Resolving DID document from URL: ${didDocUrl}`);
         const didDocResp = await fetch(didDocUrl);
