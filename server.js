@@ -40,25 +40,11 @@ const PORT = process.env.PORT || 3000;
 // const KEY_FILE_PATH = "/etc/secrets/family-organizer.key"; 
 
 // ===== CORS Configuration for Development and Production =====
-const allowedOrigins = IS_PROD
-    // In production, allow the official secure host and any null origin (for same-origin requests)
-    ? [`https://${DOMAIN}`, null] 
-    // In development, allow the insecure local host and the secure production host
-    : ["http://localhost:3000", `https://${DOMAIN}`, null];
-
 app.use(cors({
-    origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps, service workers, or same-origin in production)
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) === -1) {
-            const msg = 'EEEK The CORS policy for this site does not allow access from the specified Origin: ' + origin;
-            return callback(new Error(msg), false);
-        }
-        return callback(null, true);
-    },
+    origin: '*', // Allows all origins
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
 }));
-// ===== End CORS Configuration =====
 
 const DID = `did:web:${DOMAIN}`;
 const VERIFICATION_METHOD_ID = `${DID}#x509-jwk-1`;  // ✅ consistent
