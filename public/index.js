@@ -36,6 +36,34 @@ let issuerDID =null;               // Issuer DID for VPs
 // app.use(express.static(path.join(__dirname, "public")));
 
 // ===== Utilities =====
+/**
+ * Converts a Base64Url string to a Uint8Array.
+ * Handles padding and character replacement for URL safety.
+ * This is crucial for correctly decoding JWT parts (header, payload, signature).
+ * @param {string} base64UrlString
+ * @returns {Uint8Array}
+ */
+function base64UrlToUint8Array(base64UrlString) {
+    // 1. Convert Base64Url to Base64 (replace - with +, _ with /)
+    let base64 = base64UrlString.replace(/-/g, "+").replace(/_/g, "/");
+
+    // 2. Add padding '=' if necessary
+    while (base64.length % 4) {
+        base64 += "=";
+    }
+
+    // 3. Decode Base64 string to binary string using atob
+    const binaryString = atob(base64);
+
+    // 4. Convert binary string to Uint8Array
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+}
+
 function decodeJwt(jwt) {
     const base64Url = jwt.split(".")[1] || "";
     const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
@@ -500,47 +528,223 @@ async function handleAuthenticated(message) {
 // ===== GAIA-X VC Operations (Utilities) =====
 
 
+/**
+ * Verifies the signature of a VP JWT (JWS) using the issuer's DID document.
+ * Assumes ECDSA P-256 signature and did:web resolution.
+ *
+ * @param {string} vpJwt - The Verifiable Presentation JWT (JWS).
+ * @returns {Promise<boolean>} - True if signature is verified, false otherwise.
+ */
 async function verifyVpJwt(vpJwt) {
-  const [headerB64, payloadB64, signatureB64] = vpJwt.split(".");
-  const header = JSON.parse(atob(headerB64));
-  const payload = JSON.parse(atob(payloadB64));
+    alert("Starting VP JWT verification... Check console and debug panel for details.");
+    const debugBox = document.getElementById("ssiDebug"); // Get the debug box here
+    console.log("--- START VP JWT Verification ---");
+    console.log(`DEBUG: VP JWT (first 30 chars): ${vpJwt.substring(0, 30)}...`);
 
-  const issuerDid = payload.issuer;
-  const kid = header.kid;
+    const parts = vpJwt.split(".");
 
-  if (!issuerDid || !kid) {
-    console.error("Missing issuer or key ID in VP JWT.");
-    return false;
-  }
-
-  try {
-    const didDocUrl = `https://${issuerDid.split(":")[2]}/.well-known/did.json`;
-    const didDocResp = await fetch(didDocUrl);
-    const didDoc = await didDocResp.json();
-
-    const jwk = didDoc.verificationMethod.find(vm => vm.id === kid)?.publicKeyJwk;
-    if (!jwk) {
-      console.error("JWK not found in DID document.");
-      return false;
+    if (parts.length !== 3) {
+        console.error("DEBUG: Step 1 FAILED: Invalid JWT format (must have 3 parts).");
+        // Add this to ssiDebug panel if needed too 
+        const debugBox = document.getElementById("ssiDebug");
+        if (debugBox) {
+            debugBox.textContent += `\n[${new Date().toISOString()}] ERROR: Invalid JWT format (must have 3 parts).`;
+            debugBox.scrollTop = debugBox.scrollHeight;
+        }   
+        return false;
     }
 
-    const verified = await crypto.subtle.importKey(
-      "jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, true, ["verify"]
-    ).then(publicKey =>
-      crypto.subtle.verify(
-        { name: "ECDSA", hash: { name: "SHA-256" } },
-        publicKey,
-        Uint8Array.from(atob(signatureB64), c => c.charCodeAt(0)),
-        new TextEncoder().encode(`${headerB64}.${payloadB64}`)
-      )
-    );
+    const [headerB64, payloadB64, signatureB64] = parts;
+    console.log("DEBUG: Step 1 PASSED: JWT split into 3 parts.");
+    console.log(`DEBUG: Header B64 (first 10 chars): ${headerB64.substring(0, 10)}...`);
+    console.log(`DEBUG: Payload B64 (first 10 chars): ${payloadB64.substring(0, 10)}...`);
+    // Add this to ssiDebug panel if needed too 
+    if (debugBox) {
+        debugBox.textContent += `\n[${new Date().toISOString()}] JWT split into 3 parts successfully.`;
 
-    return verified;
-  } catch (err) {
-    console.error("Verification error:", err);
-    return false;
-  }
+        debugBox.textContent += `\n[${new Date().toISOString()}] Header B64: ${headerB64}`;
+
+        debugBox.textContent += `\n[${new Date().toISOString()}] Payload B64: ${payloadB64}`;
+        debugBox.scrollTop = debugBox.scrollHeight;
+    }
+
+    let header, payload;
+
+    try {
+        // Decode header and payload using Base64URL decoding
+        header = JSON.parse(new TextDecoder().decode(base64UrlToUint8Array(headerB64)));
+        payload = JSON.parse(new TextDecoder().decode(base64UrlToUint8Array(payloadB64)));
+
+        console.log("DEBUG: Step 2 PASSED: Header and Payload decoded successfully.");
+        console.log("DEBUG: Header content:", header);
+        console.log("DEBUG: Payload content (claims):", payload);
+        // Add this to ssiDebug panel if needed too 
+        const debugBox = document.getElementById("ssiDebug");
+        if (debugBox) {
+            debugBox.textContent += `\n[${new Date().toISOString()}] VP JWT Header: ${JSON.stringify(header)}`;
+
+            debugBox.textContent += `\n[${new Date().toISOString()}] VP JWT Payload: ${JSON.stringify(payload)}`;
+            debugBox.scrollTop = debugBox.scrollHeight;
+        }   
+
+
+    } catch (e) {
+        console.error("DEBUG: Step 2 FAILED: Failed to decode or parse JWT header/payload:", e);
+        // Add this to ssiDebug panel if needed too 
+        const debugBox = document.getElementById("ssiDebug");
+
+        if (debugBox) {
+            debugBox.textContent += `\n[${new Date().toISOString()}] ERROR: Failed to decode or parse JWT header/payload: ${e}`;
+            debugBox.scrollTop = debugBox.scrollHeight;
+        }
+
+        return false;
+    }
+
+    // Standard JWT issuer claim is 'iss'. The original code used 'issuer'.
+    const issuerDid = payload.iss || payload.issuer;
+    const kid = header.kid;
+
+    console.log(`DEBUG: Extracted Issuer DID: ${issuerDid}`);
+    console.log(`DEBUG: Extracted Key ID (kid): ${kid}`);
+
+    if (!issuerDid || !kid) {
+        console.error(`DEBUG: Step 3 FAILED: Missing 'iss'/'issuer' (${issuerDid}) or 'kid' (${kid}).`);
+        return false;
+    }
+    console.log("DEBUG: Step 3 PASSED: Issuer DID and kid are present.");
+
+    // 1. DID Resolution (Assuming did:web for host-based resolution)
+    if (!issuerDid.startsWith("did:web:")) {
+         console.warn(`DEBUG: WARNING: Non-did:web issuer detected: ${issuerDid}. Proceeding with custom did:web resolution logic which might be incorrect.`);
+    }
+
+    try {
+        // Example: did:web:example.com:path -> https://example.com/path/did.json
+        const didIdentifier = issuerDid.substring("did:web:".length);
+        // Replace ':' with '/' for path segments as per did:web spec, and append /did.json
+        const didDocUrl = `https://${didIdentifier.replace(/:/g, '/')}/did.json`;
+
+        console.log(`DEBUG: Step 4: Resolving DID document from URL: ${didDocUrl}`);
+        const didDocResp = await fetch(didDocUrl);
+        console.log(`DEBUG: DID Doc Fetch Status: ${didDocResp.status} ${didDocResp.statusText}`);
+
+        if (!didDocResp.ok) {
+            console.error(`DEBUG: Step 4 FAILED: Failed to fetch DID document. Status: ${didDocResp.status}`);
+            return false;
+        }
+
+        const didDoc = await didDocResp.json();
+        console.log("DEBUG: Step 4 PASSED: DID Document fetched and parsed successfully.");
+        // console.log("DEBUG: DID Document (uncomment to inspect):", didDoc); // Uncomment if the full DID Doc is needed
+
+        // 2. Find Verification Material (JWK)
+        const verificationMethod = didDoc.verificationMethod?.find(vm => vm.id === kid);
+        const jwk = verificationMethod?.publicKeyJwk;
+        
+        console.log(`DEBUG: Attempting to find verification method with id: ${kid}`);
+
+        if (!verificationMethod) {
+            console.error(`DEBUG: Step 5 FAILED: Verification method not found for kid: ${kid} in DID document.`);
+            // Add this to ssiDebug panel if needed too 
+            const debugBox = document.getElementById("ssiDebug");
+            if (debugBox) {
+                debugBox.textContent += `\n[${new Date().toISOString()}] ERROR: Verification method not found for kid: ${kid} in DID document.`;
+                debugBox.scrollTop = debugBox.scrollHeight;
+            }
+
+            return false;
+        }
+
+        if (!jwk) {
+            console.error(`DEBUG: Step 5 FAILED: Public Key JWK not found within the matching verification method.`);
+            // Add this to ssiDebug panel if needed too 
+            const debugBox = document.getElementById("ssiDebug");
+            if (debugBox) {
+                debugBox.textContent += `\n[${new Date().toISOString()}] ERROR: Public Key JWK not found within the matching verification method.`;
+                debugBox.scrollTop = debugBox.scrollHeight;
+            }
+
+            return false;
+        }
+        console.log("DEBUG: Step 5 PASSED: Found matching Verification Method and JWK.");
+        console.log("DEBUG: JWK 'crv' (curve) used for import:", jwk.crv); // Inspect the curve
+        // Add this to ssiDebug panel if needed too 
+        const debugBox = document.getElementById("ssiDebug");
+        if (debugBox) {
+            debugBox.textContent += `\n[${new Date().toISOString()}] Found JWK for verification: ${JSON.stringify(jwk)}`;
+            debugBox.scrollTop = debugBox.scrollHeight;
+        }   
+
+        // 3. Import Public Key (Assuming ES256 / ECDSA P-256)
+        const publicKey = await crypto.subtle.importKey(
+            "jwk",
+            jwk,
+            { name: "ECDSA", namedCurve: "P-256" },
+            true,
+            ["verify"]
+        );
+        console.log("DEBUG: Step 6 PASSED: Public Key imported successfully for ECDSA P-256.");
+        // Add this to ssiDebug panel if needed too 
+        if (debugBox) {
+            debugBox.textContent += `\n[${new Date().toISOString()}] Public Key imported successfully for ECDSA P-256.`;
+            debugBox.scrollTop = debugBox.scrollHeight;
+        }   
+
+        // 4. Prepare Data and Signature
+        const signedDataString = `${headerB64}.${payloadB64}`;
+        const signedData = new TextEncoder().encode(signedDataString);
+        const signatureBytes = base64UrlToUint8Array(signatureB64);
+
+        console.log(`DEBUG: Signed Data String (input to hash, first 30 chars): ${signedDataString.substring(0, 30)}...`);
+        console.log(`DEBUG: Signed Data Length (bytes): ${signedData.length}`);
+        console.log(`DEBUG: Signature B64 (first 10 chars): ${signatureB64.substring(0, 10)}...`);
+        console.log(`DEBUG: Signature Bytes Length: ${signatureBytes.length}`);
+        // Add this to ssiDebug panel if needed too 
+        if (debugBox) {     
+            debugBox.textContent += `\n[${new Date().toISOString()}] Prepared signed data and signature for verification.`;
+            debugBox.scrollTop = debugBox.scrollHeight;
+        }   
+
+        // 5. Verify Signature
+        console.log("DEBUG: Step 7: Executing crypto.subtle.verify...");
+        const verified = await crypto.subtle.verify(
+            { name: "ECDSA", hash: { name: "SHA-256" } },
+            publicKey,
+            signatureBytes,
+            signedData
+        );
+
+        if (!verified) {
+            console.error("DEBUG: Step 7 FAILED: JWT signature verification failed (crypto.subtle.verify returned false).");
+            // Add this to ssiDebug panel if needed too
+            if (debugBox) {
+                debugBox.textContent += `\n[${new Date().toISOString()}] ERROR: JWT signature verification failed (crypto.subtle.verify returned false).`;
+                debugBox.scrollTop = debugBox.scrollHeight;
+            }   
+        } else {
+            console.log("DEBUG: Step 7 PASSED: JWT signature successfully verified.");
+            // Add this to ssiDebug panel if needed too     
+            if (debugBox) {
+                debugBox.textContent += `\n[${new Date().toISOString()}] SUCCESS: JWT signature successfully verified.`;
+                debugBox.scrollTop = debugBox.scrollHeight;
+            }   
+        }
+        console.log("--- END VP JWT Verification ---");
+
+        return verified;
+    } catch (err) {
+        console.error("DEBUG: Verification process FAILED in the try block (Unhandled Error):", err);
+        // Add this to ssiDebug panel if needed too
+        const debugBox = document.getElementById("ssiDebug");
+        if (debugBox) {
+            debugBox.textContent += `\n[${new Date().toISOString()}] ERROR: Verification process FAILED in the try block: ${err}`;
+            debugBox.scrollTop = debugBox.scrollHeight;
+        }       
+        return false;
+    }
 }
+
 
 
 // ===== GAIA-X UI Field Management =====
