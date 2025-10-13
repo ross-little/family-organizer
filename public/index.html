@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Family Organizer X</title>
+  <title>Family Organizer 2</title>
   <link rel="icon" href="images/icons/icon-192.png" type="image/png">
 
   <!-- Stylesheet -->
@@ -44,7 +44,7 @@
     <div class="main-content">
       <!-- Top bar -->
       <div class="top-bar">
-        <div class="title">Family Organizer X</div>
+        <div class="title">Family Organizer 2</div>
         <div class="user-info" id="topbarUserInfo"></div>
       </div>
 
@@ -152,9 +152,18 @@
         </div>
 
         <!-- Step 3 Placeholder -->
-        <div class="gaiax-step card">
+        <div id="step3Card" class="gaiax-step card" style="display:none;"> 
           <h4>Step 3: Request GAIA-X Compliance VC</h4>
-          <p>Pending implementation.</p>
+          <p>Self-issued VCs ready. Request final Compliance VC from the GAIA-X Service.</p>
+          
+          <button id="requestComplianceVcBtn" class="auth-btn" disabled>Request Compliance VC</button>
+          
+          <div id="step3Notification" class="notification" style="display:none;"></div>
+
+          <div id="step3VcContainer" class="card-content" style="display:none;">
+            <h5>Step 3 VC Response:</h5>
+            <pre id="step3DecodedVcDisplay">Decoded Compliance VC payload will appear here...</pre>
+          </div>
         </div>
       </div>
     </div>

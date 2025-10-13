@@ -56,20 +56,11 @@ body {
     overflow-y: auto;
 }
 
-/* styles.css (Around line 50) */
-
-/* ===== Main Content Area (Around line 50) ===== */
 .top-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #444;
-    
-    /* CRITICAL FIXES: */
-    position: relative; /* 👈 Must be 'relative', 'absolute', or 'fixed' for z-index to work */
-    z-index: 1000;    /* 👈 Must be higher than #debugLog's z-index (which is 900) */
 }
 
 .top-bar .title {
@@ -170,19 +161,17 @@ body {
 #debugPanel {
   position: fixed;
   bottom: 0;
-  left: 100;
+  left: 0;
   right: 0;
-  width: 1200px; /* Explicitly set the width */
-  max-height: 250px;
+  max-height: 150px;
   background: #111;
   color: #0f0;
   font-size: 12px;
   border-top: 2px solid #444;
   padding: 8px;
   overflow-y: auto;
-  z-index: 800;
+  z-index: 1000;
 }
-
 
 #debugPanel h4 {
   margin: 0 0 5px 0;

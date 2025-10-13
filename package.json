@@ -12,9 +12,11 @@
   "license": "ISC",
   "dependencies": {
     "body-parser": "^1.20.2",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
     "express": "^4.19.2",
+    "express-session": "^1.18.2",
     "jose": "^6.1.0",
     "pem-jwk": "^2.0.0",
     "uuid": "^9.0.1"

@@ -8,7 +8,6 @@ import { X509Certificate } from "crypto";
 import * as jose from 'jose';
 // import pemJwk from 'pem-jwk'; // Import the default export
 import crypto from "crypto";            // for crypto.randomUUID()
-import { createPublicKey } from "crypto"; // for public key operations
 
 // cookie parser
 import cookieParser from "cookie-parser";
@@ -126,7 +125,6 @@ function toBase64url(base64) {
 
 // ... (rest of createJwkFromP256Pem function)
 function createJwkFromP256Pem(pubKeyPem) {
-    // Remove headers, footers, and newlines
     const pemContent = pubKeyPem
         .replace("-----BEGIN PUBLIC KEY-----", "")
         .replace("-----END PUBLIC KEY-----", "")
@@ -135,40 +133,18 @@ function createJwkFromP256Pem(pubKeyPem) {
         
     const keyBuffer = Buffer.from(pemContent, 'base64');
     
-    // For a standard P-256 SPKI (Subject Public Key Info), the raw 
-    // public key bytes (65 bytes: 0x04 + 32-byte X + 32-byte Y)
-    // start at offset 23 of the Base64-decoded DER buffer.
-    const rawKeyBytes = keyBuffer.subarray(23); 
+    // P-256 SPECIFIC: The raw P-256 public key is 64 bytes.
+    const keyBytes = keyBuffer.subarray(23); 
 
-    // rawKeyBytes[0] is the 0x04 uncompressed point identifier.
-    // X is bytes 1 to 32. Y is bytes 33 to 64.
-    
-    // Extract X (32 bytes)
-    const xBytes = rawKeyBytes.subarray(1, 33);
-    // Extract Y (32 bytes)
-    const yBytes = rawKeyBytes.subarray(33, 65);
+    // Extract X and Y coordinates (32 bytes each for P-256)
+    const x = toBase64url(keyBytes.subarray(1, 33).toString('base64'));
+    const y = toBase64url(keyBytes.subarray(33, 65).toString('base64'));
 
-    // Encode to unpadded Base64URL
-    const x = toBase64url(xBytes.toString('base64'));
-    const y = toBase64url(yBytes.toString('base64'));
-    
-    console.log(`[JWK Extract] X length (Base64URL): ${x.length}`);
-    console.log(`[JWK Extract] Y length (Base64URL): ${y.length}`);
-    // Debug info
-    const debugInfo = {
-        x_raw: xBytes.toString('hex'),  // raw hex  for debugging
-        y_raw: yBytes.toString('hex'),  // raw hex  for debugging
-        x_b64url: x,           // Base64URL
-        y_b64url: y,           // Base64URL
-    };
-    console.log("[JWK Extract] Debug Info:", debugInfo);
-
-    // Return only the coordinates, as kty/crv/alg/use are added 
-    // in the calling DID doc resolution function.
     return {
-        x: x,           
-        y: y,           
-        _debug: debugInfo // include debug info for logging
+        kty: "EC", // Elliptic Curve
+        crv: "P-256", // Curve P-256
+        x: x,
+        y: y
     };
 }
 
