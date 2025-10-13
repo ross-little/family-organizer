@@ -2,7 +2,13 @@
 import { generateDidDoc } from "./didDoc.js";
 
 // === NEW GLOBAL CONSTANT ===
-const APP_BASE_URL = "https://family-organizer.onrender.com"; 
+// OLD const APP_BASE_URL = "https://family-organizer.onrender.com"; 
+const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+const APP_BASE_URL = isLocalhost
+    ? "http://localhost:3000"   // Local development
+    : `https://${window.location.hostname}`; // Use secure HTTPS for remote deployment
+// This is used for all self-issued VC IDs and internal URL references.
+
 // When testing locally, change this to: "http://localhost:3000"
 // This is used for all self-issued VC IDs and internal URL references.
 // Define activateTab in the global scope so showLoginOptions can call it.
