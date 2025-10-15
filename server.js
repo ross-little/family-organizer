@@ -677,7 +677,9 @@ app.get("/.well-known/did.json", (req, res) => {
             console.log("[Dynamic Key] Confirmed: P-256 (prime256v1) for ECDSA");
             
             const jwkResult = createJwkFromP256Pem(pubKeyPem);
-           
+                
+            // Protocol must be explicitly included for the URI: https://<domain>
+            const x5uUri = `https://${DOMAIN}/.well-known/fullpem/0001_chain.pem`;
 
             // Set required JWK fields for P-256
             jwk = {
@@ -710,9 +712,7 @@ app.get("/.well-known/did.json", (req, res) => {
         console.log(`[JWK Debug] Key Type: ${jwk.kty}, Algorithm: ${jwk.alg}`);
         
 
-        // --- 3. Define x5u URI ---
-        // Protocol must be explicitly included for the URI: https://<domain>
-        const x5uUri = `https://${DOMAIN}/.well-known/fullpem/0001_chain.pem`;
+
 
         // --- 4. Assemble DID Document ---
         const didDoc = {
