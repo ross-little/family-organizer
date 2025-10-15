@@ -729,7 +729,6 @@ app.get("/.well-known/did.json", (req, res) => {
                     publicKeyJwk: jwkFinal
                 }
             ],
-            authentication: [verificationMethodId],
             assertionMethod: [verificationMethodId]
         };
 
