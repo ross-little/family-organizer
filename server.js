@@ -677,6 +677,7 @@ app.get("/.well-known/did.json", (req, res) => {
             console.log("[Dynamic Key] Confirmed: P-256 (prime256v1) for ECDSA");
             
             const jwkResult = createJwkFromP256Pem(pubKeyPem);
+           
 
             // Set required JWK fields for P-256
             jwk = {
@@ -686,6 +687,8 @@ app.get("/.well-known/did.json", (req, res) => {
                 y: jwkResult.y,
                 alg: "ES256",
                 kid: kid,
+                x5u: x5uUri,
+                // Include debug info temporarily
                 _debug: jwkResult._debug 
             };
             console.log(" Display public key JWK from reading the DID:", JSON.stringify(jwk, null, 2));
@@ -723,8 +726,7 @@ app.get("/.well-known/did.json", (req, res) => {
                     id: verificationMethodId,
                     type: "JsonWebKey2020",
                     controller: did,
-                    publicKeyJwk: jwkFinal, 
-                    x5u: x5uUri 
+                    publicKeyJwk: jwkFinal
                 }
             ],
             authentication: [verificationMethodId],
