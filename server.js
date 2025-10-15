@@ -47,6 +47,7 @@ app.use(cors({
 }));
 
 const DID = `did:web:${DOMAIN}`;
+const kid = `x509-jwk-1`;  // fragment only
 const VERIFICATION_METHOD_ID = `${DID}#x509-jwk-1`;  // ✅ consistent
 console.log(`DID: ${DID}`);
 console.log(`Verification Method ID: ${VERIFICATION_METHOD_ID}`);
@@ -85,6 +86,57 @@ app.use(
 // ===== Key Loading and Initialization (UPDATED) =====
 let signingKey;
 
+
+
+
+function loadSigningKey() {
+  
+  try {
+    const keyPath = resolveSecretPath("family-organizer.key");
+    const pem = fs.readFileSync(keyPath, "utf8");
+
+    // Detect EC key (SEC1) or PKCS#8 and create crypto.KeyObject
+    if (pem.includes("BEGIN EC PRIVATE KEY")) {
+      signingKey = crypto.createPrivateKey({ key: pem, format: "pem", type: "sec1" });
+    } else if (pem.includes("BEGIN PRIVATE KEY")) {
+      signingKey = crypto.createPrivateKey({ key: pem, format: "pem", type: "pkcs8" });
+    } else {
+      throw new Error("Unsupported private key format");
+    }
+    // show key on startup for debugging (remove in production) on the screen
+    
+    const jwk = signingKey.export({ format: "jwk" });
+    // console.log("✅ Private key JWK:", JSON.stringify(jwk, null, 2));
+
+    // console.log (`✅ Private key: ${signingKey}`);
+    // Print key type on user screen for debugging
+    console.log (`✅ Key type: ${signingKey.asymmetricKeyType}`); 
+    console.log(`✅ Private key loaded successfully ************`);
+  } catch (err) {
+    console.error("❌ CRITICAL: Failed to load Private Key:", err.message);
+    process.exit(1); // Exit if key fails
+  }
+
+   // check_key_pair_match(PRIVATE_KEY_PATH, CERTIFICATE_PATH);
+}
+
+
+// Start key loading immediately
+loadSigningKey(); 
+// ===== End Key Loading =====
+
+// Key Pair Verification Script (Node.js)
+// This script checks if a private key matches a public certificate locally.
+// It does NOT send your private key anywhere.
+
+// Requires Node.js v18+ for crypto.X509Certificate
+
+// const fs = require("fs");
+// const crypto = require("crypto");
+// const path = require("path");
+
+// ----------------------
+
 function resolveSecretPath(filename) {
   // 1️⃣ Absolute path on Render/Linux
   const renderPath = path.join("/etc/secrets", filename);
@@ -100,33 +152,155 @@ function resolveSecretPath(filename) {
 
   throw new Error(`Secret file ${filename} not found in /etc/secrets, .etc/secrets, or ./etc/secrets`);
 }
+// TEST function to check key pair match
 
+function checkKeyPairMatch() {
+    const privateKeyPath = resolveSecretPath("family-organizer.key");
+    const certificatePath = path.join(process.cwd(), "public", ".well-known", "cert", "0000_cert.pem");
 
-function loadSigningKey() {
+  console.log(`\n🔐 Checking Key Pair Match`);
+  console.log(`Private Key Path: ${privateKeyPath}`);
+  console.log(`Certificate Path: ${certificatePath}`);
+
   try {
-    const keyPath = resolveSecretPath("family-organizer.key");
-    const pem = fs.readFileSync(keyPath, "utf8");
+    // 1. Load Private Key
+    const privateKeyPem = fs.readFileSync(privateKeyPath, "utf8");
+    const privateKey = crypto.createPrivateKey({
+      key: privateKeyPem,
+      format: "pem",
+      type: privateKeyPem.includes("BEGIN EC PRIVATE KEY") ? "sec1" : "pkcs8"
+    });
 
-    // Detect EC key (SEC1) or PKCS#8 and create crypto.KeyObject
-    if (pem.includes("BEGIN EC PRIVATE KEY")) {
-      signingKey = crypto.createPrivateKey({ key: pem, format: "pem", type: "sec1" });
-    } else if (pem.includes("BEGIN PRIVATE KEY")) {
-      signingKey = crypto.createPrivateKey({ key: pem, format: "pem", type: "pkcs8" });
+    // 2. Derive Public Key from Private Key
+    const derivedPublicKey = crypto.createPublicKey(privateKey);
+
+    // 3. Load Certificate
+    const certPem = fs.readFileSync(certificatePath, "utf8");
+    const cert = new crypto.X509Certificate(certPem);
+
+    // 4. Get Public Key from Certificate
+    const certPublicKey = cert.publicKey;
+
+    // 5. Compare Public Keys (SPKI format)
+    const derivedSpki = derivedPublicKey.export({ format: "pem", type: "spki" });
+    const certSpki = certPublicKey.export({ format: "pem", type: "spki" });
+
+    const jwkFromCert = createJwkFromP256Pem(certSpki);
+    console.log("Public Key JWK from Certificate:", JSON.stringify(jwkFromCert, null, 2));
+
+    if (derivedSpki === certSpki) {
+      console.log("✅ SUCCESS: The Private Key and Certificate Public Key MATCH.");
+      return true;
     } else {
-      throw new Error("Unsupported private key format");
+      console.log("❌ FAILURE: The Private Key and Certificate Public Key DO NOT MATCH.");
+      return false;
     }
 
-    console.log(`✅ Private key loaded successfully from: ${keyPath}`);
   } catch (err) {
-    console.error("❌ CRITICAL: Failed to load Private Key:", err.message);
-    process.exit(1); // Exit if key fails
+    console.error("❌ ERROR:", err.message);
+    return false;
   }
 }
 
+async function testSignAndVerify() {
+  console.log("\n🧪 ************ Running startup test: sign and verify VC");
 
-// Start key loading immediately
-loadSigningKey(); 
-// ===== End Key Loading =====
+  const payload = {
+    sub: "did:web:family-organizer.onrender.com#test",
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    vc: { type: ["VerifiableCredential"], credentialSubject: { id: "did:web:test" } }
+  };
+
+  const protectedHeader = {
+    alg: "ES256",
+    typ: "vc+jwt",
+    kid: VERIFICATION_METHOD_ID
+  };
+
+  const signedJwt = await new jose.SignJWT(payload)
+      .setProtectedHeader(protectedHeader)
+      .sign(signingKey);
+  try {
+
+    console.log("✅ Signed JWT:", signedJwt);
+
+    // Load public key from certificate
+    const certPath = path.join(process.cwd(), "public", ".well-known", "cert", "0000_cert.pem");
+    const certPem = fs.readFileSync(certPath, "utf8");
+    const cert = new X509Certificate(certPem);
+    const publicKey = cert.publicKey;
+    console.log("✅ Loaded public key from certificate for verification.");
+    console.log(`Public Key Type: ${publicKey.asymmetricKeyType}`);
+    console.log(`Public Key: ${publicKey.export({ format: "pem", type: "spki" })}`);
+    console.log("Public Key JWK:", JSON.stringify(createJwkFromP256Pem(publicKey.export({ format: "pem", type: "spki" })), null, 2));
+    // log the public key as read from the PEM file
+    console.log("************** Public Key read from the PEM:", publicKey);
+
+    // Verify the JWT
+    const { payload: verifiedPayload } = await jose.jwtVerify(signedJwt, publicKey, {
+      algorithms: ["ES256"]
+    });
+
+    console.log("✅ Verified payload:", verifiedPayload);
+    console.log("🟢 Startup test passed: VC signed and verified successfully.");
+  } catch (err) {
+    console.error("❌ Startup test failed:", err.message);
+  }
+
+//////////////////// TEST AND VERIFY WITH DID DOC ////////////////////////
+  try {
+    console.log("\n🔍 part ii ----> Starting VP JWT verification FROM THE did...");
+    const parts = signedJwt.split(".");
+    if (parts.length !== 3) throw new Error("Invalid JWT format");
+
+    const [headerB64, payloadB64] = parts;
+    const header = JSON.parse(Buffer.from(headerB64, "base64url").toString("utf8"));
+    const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8"));
+
+    console.log("Header:", header);
+    console.log("Payload:", payload);
+
+    const issuerDid = DID;
+    const kid = VERIFICATION_METHOD_ID;
+ 
+
+    console.log(`Issuer DID: ${issuerDid}`);
+    console.log(`Key ID (kid): ${kid}`);
+
+    const didUrl = `https://${issuerDid.split(":")[2]}/.well-known/did.json`;
+    const didResp = await fetch(didUrl);
+    if (!didResp.ok) throw new Error(`Failed to fetch DID document: ${didResp.status}`);
+    const didDoc = await didResp.json();
+
+    const verificationMethod = didDoc.verificationMethod?.find(vm => vm.id === kid);
+    if (!verificationMethod) throw new Error("Verification method not found in DID document");
+
+    const jwk = verificationMethod.publicKeyJwk;
+    if (!jwk) throw new Error("JWK not found in verification method");
+
+    console.log("JWK:", jwk);
+
+    const publicKey = await jose.importJWK(jwk, "ES256");
+    const { payload: verifiedPayload } = await jose.jwtVerify(vpJwt, publicKey, {
+      algorithms: ["ES256"]
+    });
+
+    console.log("✅ VP JWT verified successfully.");
+
+  } catch (err) {
+    console.error("❌ VP JWT verification failed:", err.message);
+
+  }
+
+}
+
+
+// Run the start-up checks
+checkKeyPairMatch();
+testSignAndVerify();
+
+
 
 
 // ===== Utility Function for Base64url Encoding (EXISTING) =====
@@ -461,6 +635,8 @@ app.get("/.well-known/did.json", (req, res) => {
         
         const x509 = new X509Certificate(leafPem);
         const pubKeyPem = x509.publicKey.export({ type: "spki", format: "pem" });
+        // set the kid to the verificationMethodId to the right of the hash i.e. withouth the preceeding path
+
 
         // --- 2. Dynamically Determine Key Parameters ---
         let jwk = {};
@@ -484,10 +660,11 @@ app.get("/.well-known/did.json", (req, res) => {
                 crv: "P-256", // Standard name for JWK/DID-JWK
                 x: jwkResult.x,
                 y: jwkResult.y,
-                alg: "ES256", 
-                use: "sig",
+                alg: "ES256",
+                kid: kid,
                 _debug: jwkResult._debug 
             };
+            console.log(" Display public key JWK from reading the DID:", JSON.stringify(jwk, null, 2));
             
         } else if (asymmetricKeyType === 'rsaEncryption' || asymmetricKeyType === 'rsa') {
             // FUTURE SUPPORT: Handle RSA Key extraction here
@@ -514,13 +691,13 @@ app.get("/.well-known/did.json", (req, res) => {
         const didDoc = {
             "@context": [
                 "https://www.w3.org/ns/did/v1",
-                "https://w3id.org/security/suites/x509-jwk-2020/v1"
+                "https://w3id.org/security/suites/jws-2020/v1"
             ],
             id: did,
             verificationMethod: [
                 {
                     id: verificationMethodId,
-                    type: "X509Jwk2020",
+                    type: "JsonWebKey2020",
                     controller: did,
                     publicKeyJwk: jwkFinal, 
                     x5u: x5uUri 
@@ -546,6 +723,61 @@ app.get("/.well-known/did.json", (req, res) => {
     }
 });
 
+// ===== TESTING Express Endpoint for VP Verification =====
+
+app.post("/api/verify-vp", async (req, res) => {
+  const vpJwt = req.body?.vpJwt;
+  if (!vpJwt) {
+    return res.status(400).json({ error: "Missing vpJwt in request body" });
+  }
+
+  try {
+    console.log("\n🔍 Starting VP JWT verification...");
+    const parts = vpJwt.split(".");
+    if (parts.length !== 3) throw new Error("Invalid JWT format");
+
+    const [headerB64, payloadB64] = parts;
+    const header = JSON.parse(Buffer.from(headerB64, "base64url").toString("utf8"));
+    const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8"));
+
+    console.log("Header:", header);
+    console.log("Payload:", payload);
+
+    const issuerDid = DID;
+    const kid = VERIFICATION_METHOD_ID;
+    if (!issuerDid || !kid) throw new Error("Missing 'iss' or 'kid'");
+
+    console.log(`Issuer DID: ${issuerDid}`);
+    console.log(`Key ID (kid): ${kid}`);
+
+    const didUrl = `https://${issuerDid.split(":")[2]}/.well-known/did.json`;
+    const didResp = await fetch(didUrl);
+    if (!didResp.ok) throw new Error(`Failed to fetch DID document: ${didResp.status}`);
+    const didDoc = await didResp.json();
+
+    const verificationMethod = didDoc.verificationMethod?.find(vm => vm.id === kid);
+    if (!verificationMethod) throw new Error("Verification method not found in DID document");
+
+    const jwk = verificationMethod.publicKeyJwk;
+    if (!jwk) throw new Error("JWK not found in verification method");
+
+    console.log("JWK:", jwk);
+
+    const publicKey = await jose.importJWK(jwk, "ES256");
+    const { payload: verifiedPayload } = await jose.jwtVerify(vpJwt, publicKey, {
+      algorithms: ["ES256"]
+    });
+
+    // LOG THE PUBLIK KEY
+    console.log("Public Key FROM THE did used for verification:", publicKey);
+
+    console.log("✅ VP JWT verified successfully.");
+    res.json({ success: true, payload: verifiedPayload });
+  } catch (err) {
+    console.error("❌ VP JWT verification failed:", err.message);
+    res.status(400).json({ error: err.message });
+  }
+});
 
 // ===== Serve index.html for SPA (Standard) =====
 app.get("/", (req, res) => {
