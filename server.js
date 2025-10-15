@@ -186,6 +186,7 @@ function checkKeyPairMatch() {
     const certSpki = certPublicKey.export({ format: "pem", type: "spki" });
 
     const jwkFromCert = createJwkFromP256Pem(certSpki);
+    console.log(" 🔑🔑🔑🔑🔑🔑🔑 [Phase I] PEM PublicKey Object:");
     console.log("Public Key JWK from Certificate:", JSON.stringify(jwkFromCert, null, 2));
 
     if (derivedSpki === certSpki) {
@@ -209,7 +210,7 @@ async function testSignAndVerify() {
     sub: "did:web:family-organizer.onrender.com#test",
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + 3600,
-    vc: { type: ["VerifiableCredential"], credentialSubject: { id: "did:web:test" } }
+    vc: { type: ["VerifiableCredential"], credentialSubject: { id: DID } }
   };
 
   const protectedHeader = {
@@ -228,14 +229,19 @@ async function testSignAndVerify() {
     // Load public key from certificate
     const certPath = path.join(process.cwd(), "public", ".well-known", "cert", "0000_cert.pem");
     const certPem = fs.readFileSync(certPath, "utf8");
+    console.log("✅ Loaded certificate for verification.");
+    console.log(certPem.substring(0, 1000) + "..."); // print first 1000 chars
     const cert = new X509Certificate(certPem);
     const publicKey = cert.publicKey;
     console.log("✅ Loaded public key from certificate for verification.");
-    console.log(`Public Key Type: ${publicKey.asymmetricKeyType}`);
-    console.log(`Public Key: ${publicKey.export({ format: "pem", type: "spki" })}`);
-    console.log("Public Key JWK:", JSON.stringify(createJwkFromP256Pem(publicKey.export({ format: "pem", type: "spki" })), null, 2));
-    // log the public key as read from the PEM file
-    console.log("************** Public Key read from the PEM:", publicKey);
+    // console.log(`Public Key Type: ${publicKey.asymmetricKeyType}`);
+    // console.log(`Public Key: ${publicKey.export({ format: "pem", type: "spki" })}`);
+    console.log("🔑 [Phase II]  JWK object (from pem:", JSON.stringify(createJwkFromP256Pem(publicKey.export({ format: "pem", type: "spki" })), null, 2));
+    
+    // console.log("************** Public Key read from the PEM:", publicKey);
+    
+    console.log("🔑 [Phase I] PEM PublicKey Object:", publicKey);
+    console.log("🔑 [Phase I] PEM DER (raw buffer):", publicKey.export({ format: "der", type: "spki" }).toString("base64url"));
 
     // Verify the JWT
     const { payload: verifiedPayload } = await jose.jwtVerify(signedJwt, publicKey, {
@@ -276,20 +282,53 @@ async function testSignAndVerify() {
     const verificationMethod = didDoc.verificationMethod?.find(vm => vm.id === kid);
     if (!verificationMethod) throw new Error("Verification method not found in DID document");
 
-    const jwk = verificationMethod.publicKeyJwk;
-    if (!jwk) throw new Error("JWK not found in verification method");
+    const jwkRaw = verificationMethod.publicKeyJwk;
+    if (!jwkRaw) throw new Error("JWK not found in verification method");
 
-    console.log("JWK:", jwk);
+    console.log("JWK:", jwkRaw);
+    console.log("DID Doc:", didDoc);
+    // CHECK BEFORE IMPORTING THE JWK INTO A KEY OBJECT
+    console.log("🔑 [Phase II] JWK raw object (pre-import):", JSON.stringify(jwkRaw, null, 2));
+    // console.log("🔑 [Phase II] Re-encoded SPKI from JWK:", Buffer.from(await jose.exportSPKI(await jose.importJWK({
+    //  kty: jwk.kty,
+    //  crv: jwk.crv,
+    //  x: jwk.x,
+    //  y: jwk.y,
+    //  alg: jwk.alg
+    //  }, "ES256"))).toString("base64url"));
+    // FINISH JWK CHECK
 
-    const publicKey = await jose.importJWK(jwk, "ES256");
-    const { payload: verifiedPayload } = await jose.jwtVerify(vpJwt, publicKey, {
+    // Clean JWK before import
+    const jwk = JSON.parse(JSON.stringify(jwkRaw)); // full deep clone
+
+
+    const cleanJwk = {kty:String(jwk.kty),crv:String(jwk.crv),x:String(jwk.x),y:String(jwk.y)};
+    // Log the cleaned JWK
+    // const cleanJwk2 = {kty:"EC",crv:"P-256",x:"tGzplS5hHV2l9NuzV1yBOVmnMvML27dhXl-Jz9fxtyE",y:"zVS7ym4W72O_tW-0X_VxpBwGBtaNJFZzHrckrEPMmME"}
+    // const cleanJwk2 = {kty:"EC",crv:"P-256",x:"qaMoA0kPb8-DN9CYYz_jPB_XHzJsE6F_4XkFvUMsC0E",y:"KXp-PcklzRj_3Hw62-4gEl9CMehNPmFO0BDt9ywaCbA"}
+
+    console.log("🔑 [Phase II.1] Clean JWK object (pre-import):", JSON.stringify(cleanJwk, null, 2));
+    // const publicKey = await jose.importJWK(cleanJwk, "ES256");
+    const publicKeyJWK = await jose.importJWK(cleanJwk, "ES256");
+    console.log("🔑 [Phase II.2] PublicKey JWK Object from importJWK:", publicKeyJWK);
+    const publicKeyPEM = await jose.exportSPKI(publicKeyJWK);
+    const publicKeyObject = crypto.createPublicKey(publicKeyPEM);
+
+    // const publicKey = await jose.importJWK(jwk, "ES256");
+    console.log("Public keyc:", publicKeyObject);
+    console.log("🔑 [Phase II] DID PublicKey Object:", publicKeyObject);
+    console.log("🔑 [Phase II] DID DER (raw buffer):", publicKeyObject.export({ format: "der", type: "spki" }).toString("base64url"));
+
+
+        // Verify the JWT
+    const { payload: verifiedPayload2 } = await jose.jwtVerify(signedJwt, publicKeyObject, {
       algorithms: ["ES256"]
     });
 
-    console.log("✅ VP JWT verified successfully.");
+    console.log("✅ Verified payload:", verifiedPayload2);
 
   } catch (err) {
-    console.error("❌ VP JWT verification failed:", err.message);
+    console.error("❌ VC JWT verification failed:", err.message);
 
   }
 
@@ -312,53 +351,38 @@ function toBase64url(base64) {
 }
 
 // ... (rest of createJwkFromP256Pem function)
-function createJwkFromP256Pem(pubKeyPem) {
-    // Remove headers, footers, and newlines
-    const pemContent = pubKeyPem
-        .replace("-----BEGIN PUBLIC KEY-----", "")
-        .replace("-----END PUBLIC KEY-----", "")
-        .replace(/[\r\n]/g, "")
-        .trim();
-        
-    const keyBuffer = Buffer.from(pemContent, 'base64');
-    
-    // For a standard P-256 SPKI (Subject Public Key Info), the raw 
-    // public key bytes (65 bytes: 0x04 + 32-byte X + 32-byte Y)
-    // start at offset 23 of the Base64-decoded DER buffer.
-    const rawKeyBytes = keyBuffer.subarray(23); 
 
-    // rawKeyBytes[0] is the 0x04 uncompressed point identifier.
-    // X is bytes 1 to 32. Y is bytes 33 to 64.
-    
-    // Extract X (32 bytes)
-    const xBytes = rawKeyBytes.subarray(1, 33);
-    // Extract Y (32 bytes)
-    const yBytes = rawKeyBytes.subarray(33, 65);
+function createJwkFromP256Pem(pem) {
+  // Convert PEM to raw DER bytes
+  const pemBody = pem
+    .replace(/-----BEGIN PUBLIC KEY-----/, "")
+    .replace(/-----END PUBLIC KEY-----/, "")
+    .replace(/\s+/g, "");
+  const der = Buffer.from(pemBody, "base64");
 
-    // Encode to unpadded Base64URL
-    const x = toBase64url(xBytes.toString('base64'));
-    const y = toBase64url(yBytes.toString('base64'));
-    
-    console.log(`[JWK Extract] X length (Base64URL): ${x.length}`);
-    console.log(`[JWK Extract] Y length (Base64URL): ${y.length}`);
-    // Debug info
-    const debugInfo = {
-        x_raw: xBytes.toString('hex'),  // raw hex  for debugging
-        y_raw: yBytes.toString('hex'),  // raw hex  for debugging
-        x_b64url: x,           // Base64URL
-        y_b64url: y,           // Base64URL
-    };
-    console.log("[JWK Extract] Debug Info:", debugInfo);
+  // Decode ASN.1 structure to get EC point
+  // The uncompressed EC point starts with 0x04 followed by X(32) + Y(32)
+  // Find 0x04 (uncompressed point marker)
+  const idx = der.indexOf(0x04);
+  if (idx === -1) throw new Error("Invalid EC public key: no uncompressed point found");
 
-    // Return only the coordinates, as kty/crv/alg/use are added 
-    // in the calling DID doc resolution function.
-    return {
-        x: x,           
-        y: y,           
-        _debug: debugInfo // include debug info for logging
-    };
+  const x = der.slice(idx + 1, idx + 33);
+  const y = der.slice(idx + 33, idx + 65);
+
+  if (x.length !== 32 || y.length !== 32) {
+    throw new Error(`Invalid coordinate length (x=${x.length}, y=${y.length})`);
+  }
+
+  const jwk = {
+    kty: "EC",
+    crv: "P-256",
+    x: x.toString("base64url"),
+    y: y.toString("base64url"),
+    alg: "ES256",
+  };
+
+  return jwk;
 }
-
 
 // ===== Express App Initialization (EXISTING) =====
 // ... (rest of express setup code)
