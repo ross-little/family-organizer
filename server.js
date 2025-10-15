@@ -679,7 +679,7 @@ app.get("/.well-known/did.json", (req, res) => {
             const jwkResult = createJwkFromP256Pem(pubKeyPem);
                 
             // Protocol must be explicitly included for the URI: https://<domain>
-            const x5uUri = `https://${DOMAIN}/.well-known/fullpem/0001_chain.pem`;
+            const x5uUri = `https://${DOMAIN}/.well-known/cert/0000_cert.pem`;
 
             // Set required JWK fields for P-256
             jwk = {
