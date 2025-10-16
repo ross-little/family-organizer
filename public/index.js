@@ -22,6 +22,8 @@ const panels = {
 };
 const tabElements = {}; // Will be populated in DOMContentLoaded
 
+const termsUrl = `${APP_BASE_URL}/.well-known/gaia-x/tc/tc.txt`;
+
 // ===== Global State =====
 let currentUser = null;
 let currentNonce = null;
@@ -38,6 +40,13 @@ let complianceVcJwt = null;            // Final Compliance VC
 let gaiaxRegistrationVcJwt = null;   // Step 0: Registration VC
 let TestVp = false;          // Toggle for using test VPC
 let issuerDID =null;               // Issuer DID for VPs
+let hashHex = null;                 // SHA-512 hash of T&Cs text    
+let tCVcId = null;                 // ID of the T&C VC
+let registrationVcId = null;       // ID of the Registration VC 
+let globalRegId = null;        // Global Legal Registration ID for Step 2   
+
+
+
 
 // === VC Proof Constants ===
 
@@ -604,38 +613,107 @@ function prepopulateGaiaxStep2Fields() {
  * Fetches the GAIA-X Trust Framework SHACL shapes and extracts the 
  * Legal Participant VC template requirements.
  */
+// Globals to hold parsed shape templates
+let GX_TEMPLATES = {
+  LegalPerson: null,
+  TermsAndConditions: null,
+};
+
 async function fetchAndParseGaiaxShapes() {
-    // Corrected URL to use the one requested by the user: v1-staging
-    const SHAPES_URL = "https://registry.lab.gaia-x.eu/development/api/trusted-shape-registry/v1/shapes/jsonld/trustframework#"; 
+  const SHAPES_URL =
+    "https://registry.lab.gaia-x.eu/development/api/trusted-shape-registry/v1/shapes/jsonld/trustframework#";
 
-    console.log("Fetching GAIA-X SHACL shapes from staging registry...");
-    try {
-        const response = await fetch(SHAPES_URL);
-        if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        
-        const shapes = await response.json();
-        
-        console.log("✅ GAIA-X SHACL shapes fetched successfully. Storing data.");
-        
-        // Return the full JSON object to be processed later
-        return shapes; 
+  console.log("[GAIA-X] Fetching SHACL shapes from:", SHAPES_URL);
 
-    } catch (error) {
-        console.error("❌ Failed to fetch or parse GAIA-X shapes:", error);
-        
-        // Fallback: This is the expected structure based on the Trust Framework documentation
-        return { 
-            requiredProperties: [
-                "gx:termsAndConditions",
-                "gx:registrationNumber",
-                "gx:headquartersAddress",
-                "gx:legalAddress"
-            ]
-        };
+  try {
+    const response = await fetch(SHAPES_URL);
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
     }
+
+    const shapes = await response.json();
+    console.log("✅ GAIA-X SHACL shapes fetched successfully.");
+
+    // Attempt to find LegalPerson and TermsAndConditions nodes
+    const legalPersonShape = findShape(shapes, "gx:LegalPersonShape");
+    const termsShape = findShape(shapes, "gx:TermsAndConditionsShape");
+
+    // Generate minimal JSON-LD templates based on required properties
+    GX_TEMPLATES.LegalPerson = buildTemplate(legalPersonShape, "gx:LegalPerson");
+    GX_TEMPLATES.TermsAndConditions = buildTemplate(
+      termsShape,
+      "gx:TermsAndConditions"
+    );
+
+    console.log("✅ Extracted Gaia-X Templates:");
+    console.dir(GX_TEMPLATES, { depth: null });
+
+    return GX_TEMPLATES;
+  } catch (error) {
+    console.error("❌ Failed to fetch or parse GAIA-X shapes:", error);
+
+    // Fallback minimal shapes
+    GX_TEMPLATES.LegalPerson = {
+      "@context": ["https://www.w3.org/ns/did/v1", "https://w3id.org/gaia-x/development"],
+      "type": "gx:LegalPerson",
+      "gx:legalName": "",
+      "gx:registrationNumber": "",
+      "gx:headquartersAddress": {},
+      "gx:legalAddress": {},
+    };
+
+    GX_TEMPLATES.TermsAndConditions = {
+      "@context": ["https://www.w3.org/ns/did/v1", "https://w3id.org/gaia-x/development"],
+      "type": "gx:TermsAndConditions",
+      "gx:termsURL": "",
+      "gx:version": "",
+      "gx:hash": "",
+    };
+
+    return GX_TEMPLATES;
+  }
 }
+
+/**
+ * Finds a shape definition within the JSON-LD graph.
+ */
+function findShape(shapes, targetType) {
+  if (!shapes || !shapes["@graph"]) return null;
+  return shapes["@graph"].find((entry) => entry["@id"]?.includes(targetType)) || null;
+}
+
+/**
+ * Builds a minimal JSON-LD template object from a SHACL shape definition.
+ * (This is simplified — it only extracts property names, not nested constraints.)
+ */
+function buildTemplate(shape, typeIRI) {
+  if (!shape || !shape["sh:property"]) {
+    console.warn(`⚠️ No properties found for shape ${typeIRI}`);
+    return { type: typeIRI };
+  }
+
+  const properties = Array.isArray(shape["sh:property"])
+    ? shape["sh:property"]
+    : [shape["sh:property"]];
+
+  const template = {
+    "@context": [
+      "https://www.w3.org/ns/did/v1",
+      "https://registry.lab.gaia-x.eu/development/api/trusted-shape-registry/v1/shapes/jsonld/trustframework#",
+    ],
+    type: typeIRI,
+  };
+
+  for (const prop of properties) {
+    const path = prop["sh:path"];
+    if (path && typeof path === "string" && path.startsWith("gx:")) {
+      template[path] = "";
+    }
+  }
+
+  return template;
+}
+
 
 // ===== GAIA-X VC Operations (Step 1: Request Legal Registration VC) =====
 async function requestGaiaxVc() {
@@ -707,6 +785,12 @@ async function requestGaiaxVc() {
 
         const decodedPayload = decodeJwt(rawVc); 
                     // --- LOG RAW JWT TO DEBUG PANEL (as requested) ---
+        // Parse the decodedPayload to get the id of the VC for logging
+        registrationVcId = decodedPayload?.id || "unknown";
+        console.log(`✅ Received VC with ID: ${registrationVcId}`);
+        
+        
+
         if (debugBox) {
             // Log the raw response, indicating it is the JWT
             const logMessage = `GAIA-X Notary Response (Raw JWT): ${rawVc.substring(0, 15000)}...`;
@@ -729,7 +813,7 @@ async function requestGaiaxVc() {
             legalRegistrationId: credentialSubject["gx:vatID"] || credentialSubject.vatID,
             rawSubject: credentialSubject
         };
-
+        globalRegId = credentialSubject.id; // Store globally for later use
         console.log("Stored Legal Registration VC Subject:", legalRegistrationVcPayload);
 
         // Success Notification
@@ -1005,7 +1089,7 @@ async function selfIssueTermsAndConditionsVc() {
         const participantDid = document.getElementById("participantDidInput").value;
         if (!participantDid) throw new Error("Participant DID is required.");
 
-        const termsUrl = `${APP_BASE_URL}/.well-known/gaia-x/tc/tc.txt`;
+        // const termsUrl = `${APP_BASE_URL}/.well-known/gaia-x/tc/tc.txt`;
         const termsResponse = await fetch(termsUrl);
         if (!termsResponse.ok) throw new Error(`Failed to fetch Terms & Conditions from ${termsUrl}`);
         const termsText = await termsResponse.text();
@@ -1014,23 +1098,28 @@ async function selfIssueTermsAndConditionsVc() {
         const encoder = new TextEncoder();
         const data = encoder.encode(termsText);
         const hashBuffer = await crypto.subtle.digest("SHA-512", data);
-        const hashHex = Array.from(new Uint8Array(hashBuffer))
+        hashHex = Array.from(new Uint8Array(hashBuffer))
             .map(b => b.toString(16).padStart(2, "0"))
             .join("");
 
         const vcId = `${APP_BASE_URL}/credentials/${uuidv4()}`;
+        tCVcId = vcId; // Save for later use in Legal Participant VC;
+        console.log("[GAIA-X] T&C VC ID:", vcId);
+
+        // Create VC payload
         const vcPayload = {
             "@context": [
                 "https://www.w3.org/ns/credentials/v2",
                 "https://w3id.org/gaia-x/development#"
             ],
             type: ["VerifiableCredential", "gx:TermsAndConditions"],
+            "issuer": participantDid,
             "@id": vcId,
             issuer: participantDid,
             "validFrom": validFrom,
             "validUntil": validUntil,
             credentialSubject: {
-                "@id": participantDid,
+                "@id":participantDid+vcId,
                 "gx:hash": hashHex,
                 "gx:url": { "@value": termsUrl, "@type": "xsd:anyURI" }
             }
@@ -1097,6 +1186,7 @@ async function selfIssueTermsAndConditionsVc() {
 
 // ===== GAIA-X VC Operations (Step 2b: Self-Issue Legal Participant VC) =====
 async function selfIssueLegalParticipantVc(tcVcId) {
+    const debugBox = document.getElementById("ssiDebug");
     const notification = document.getElementById("step2Notification");
     const selfIssueBtn = document.getElementById("selfIssueBtn");
 
@@ -1119,29 +1209,65 @@ async function selfIssueLegalParticipantVc(tcVcId) {
                 "https://www.w3.org/ns/credentials/v2",
                 "https://w3id.org/gaia-x/development#"
             ],
-            type: ["VerifiableCredential", "gx:LegalPerson"],
-            "@id": vcId,
-            issuer: participantDid,
-            validFrom: validFrom,
-            validUntil: validUntil,
-            credentialSubject: {
-                "@id": participantDid,
-                "gx:legalAddress": legalCountry,
-                "gx:subOrganisationOf": participantDid,
-                "gx:registrationNumber": legalRegistrationId,
-                "gx:headquartersAddress": hqCountry
-            }
-           // evidence: {
-           //     "gx:evidenceOf": "gx:TermsAndConditions",
-           //     "gx:evidenceDocument": tcVcId
-            }
+            "@id":vcId,
+            "type":["VerifiableCredential", "gx:LegalPerson"],
+            "issuer":participantDid,
+            "validFrom":validFrom,
+            "credentialSubject":{
+                "@id":participantDid+vcId,
+             //   "gx:legalName":"Eviden",
+                "gx:legalAddress":{
+                    "@type":"gx:Address",
+                    "gx:countryCode":legalCountry
+                    // optional: "gx:street": "...", "gx:locality": "..."
+                    },
+                "gx:registrationNumber":{
+                    "@id":globalRegId,
+                    },
+                "gx:headquartersAddress":{
+                    "@type":"gx:Address",
+                    "gx:countryCode":hqCountry
+                    },
+                //"gx:vatID":{
+                //    "@id":registrationVcId
+                //    },
+                "gx:termsAndConditions": {
+                    "@id":tcVcId,
+                    }   
+                },
+            "validUntil":validUntil
+            };
+        
     
+        // ######################## CREATE VC from template ########################
+        // For debugging: log the templates
+        console.log(GX_TEMPLATES.LegalPerson);
+        console.log(GX_TEMPLATES.TermsAndConditions);
 
-        const debugBox = document.getElementById("ssiDebug");
-        if (debugBox) {
-            debugBox.textContent += `\n[${new Date().toISOString()}] Legal Participant VC Payload (Unsigned):\n${JSON.stringify(vcPayload, null, 2)}`;
-            debugBox.scrollTop = debugBox.scrollHeight;
-        }
+        // Generate a VC
+        const vc = {
+        "@context": GX_TEMPLATES.LegalPerson["@context"],
+        type: ["VerifiableCredential", GX_TEMPLATES.LegalPerson.type],
+        issuer: "did:web:family-organizer.onrender.com",
+        credentialSubject: {
+            ...GX_TEMPLATES.LegalPerson,
+            "gx:legalName": "Family Organizer",
+            "gx:registrationNumber": "BE0762747721",
+            },
+        };
+        // Log the generated VC
+        console.log("Generated LegalPerson VC:", vc);
+
+        // ########################################################################
+
+        
+        //if (debugBox) {
+        //    ebugBox.textContent += `\n[${new Date().toISOString()}] Legal Participant VC Payload (Unsigned):\n${JSON.stringify(vcPayload, null, 2)}`;
+        //    debugBox.scrollTop = debugBox.scrollHeight;
+        // }
+        // Add alert to show the vc Payload
+        alert("Here is the debug Legal Participant VC Payload:\n" + JSON.stringify(vc, null, 2));    
+
 
         // Sign VC
         const response = await fetch("/api/sign-vc", {

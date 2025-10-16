@@ -562,17 +562,17 @@ app.post("/api/sign-vc", async (req, res) => {
     const claims = JSON.parse(JSON.stringify(vcPayload));
 
     // Remove embedded issuer (we'll put it in standard 'iss' claim to follow VC-JWT mapping)
-    delete claims.issuer;
+    // delete claims.issuer;
 
     // Ensure required JWT registered claims are present/normalized:
     // if (!claims.id && vcPayload.id) claims.id = vcPayload.id;   // keep VC id if provided
     // set standard JWT claims (do not overwrite if caller provided)
-    if (!claims.iss) claims.iss = issuer;
-    if (!claims.sub) claims.sub = subject;
-    if (!claims.iat) claims.iat = now;
-    if (!claims.nbf) claims.nbf = now;
-    if (!claims.exp) claims.exp = now + (365 * 24 * 60 * 60); // default 1 year
-    if (!claims.jti) claims.jti = `urn:uuid:${crypto.randomUUID()}`;
+    // if (!claims.iss) claims.iss = issuer;
+    // if (!claims.sub) claims.sub = subject;
+    // if (!claims.iat) claims.iat = now;
+    // if (!claims.nbf) claims.nbf = now;
+    // if (!claims.exp) claims.exp = now + (365 * 24 * 60 * 60); // default 1 year
+    // if (!claims.jti) claims.jti = `urn:uuid:${crypto.randomUUID()}`;
 
     // Protected header per VC-JWT spec (credential-claims-set mapping)
     const protectedHeader = {
@@ -680,16 +680,21 @@ app.get("/.well-known/did.json", (req, res) => {
                 
             // Protocol must be explicitly included for the URI: https://<domain>
             const x5uUri = `https://${DOMAIN}/.well-known/cert/0000_cert.pem`;
+            const base64Leaf = leafPem
+            .replace(/-----BEGIN CERTIFICATE-----/, "")
+            .replace(/-----END CERTIFICATE-----/, "")
+            .replace(/\s+/g, "");
 
             // Set required JWK fields for P-256
             jwk = {
                 kty: "EC",
+                alg: "ES256",
+                kid: kid,
                 crv: "P-256", // Standard name for JWK/DID-JWK
                 x: jwkResult.x,
                 y: jwkResult.y,
-                alg: "ES256",
-                kid: kid,
-                x5u: x5uUri,
+                //x5u: x5uUri,
+                x5c:[base64Leaf],
                 // Include debug info temporarily
                 _debug: jwkResult._debug 
             };
