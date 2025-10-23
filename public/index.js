@@ -44,6 +44,8 @@ let hashHex = null;                 // SHA-512 hash of T&Cs text
 let tCVcId = null;                 // ID of the T&C VC
 let registrationVcId = null;       // ID of the Registration VC 
 let globalRegId = null;        // Global Legal Registration ID for Step 2   
+let gaiaxIssuerVcJwt = null;        // Step 2b: Issuer VC   
+
 
 
 
@@ -973,6 +975,11 @@ async function gaiaxComplianceVc() {
                 "id": `data:application/vc+jwt,${gaiaxTermsVcJwt}`,
                 "type": "EnvelopedVerifiableCredential"
             },
+                        {
+                "@context": "https://www.w3.org/ns/credentials/v2",
+                "id": `data:application/vc+jwt,${gaiaxIssuerVcJwt}`,
+                "type": "EnvelopedVerifiableCredential"
+            },
             {
                 "@context": "https://www.w3.org/ns/credentials/v2",
                 "id": `data:application/vc+jwt,${gaiaxParticipantVcJwt}`,
@@ -983,7 +990,6 @@ async function gaiaxComplianceVc() {
         "validFrom": validFrom,
         "validUntil": validUntil
     };
-
     try {
         // 1️⃣ Sign VP via local signing endpoint
         const signResponse = await fetch("/api/sign-vp", {
@@ -1297,9 +1303,55 @@ async function selfIssueLegalParticipantVc(tcVcId) {
         // Update display container
         const step2VcDisplay = document.getElementById("step2DecodedVcDisplay");
         step2VcDisplay.textContent += `\n\n--- Legal Participant VC ---\nRaw JWT:\n${rawVc}\n\nPayload:\n${JSON.stringify(decodedPayload, null, 2)}`;
+// --------------------------------------------------------------------------
+// ## 2. Create and Sign the Requested gx:Issuer VC (Non-Standard)
+// --------------------------------------------------------------------------
 
-        notification.textContent = "🎉 Step 2 Complete! Both VCs successfully issued.";
+        const vcId2 = `${APP_BASE_URL}/credentials/${uuidv4()}`;
+        const issuerVcPayload = {
+            "@context": [
+                "https://www.w3.org/ns/credentials/v2",
+                "https://w3id.org/gaia-x/development#"
+            ],
+            "@id": vcId2,
+            // Per your request, setting type to 'gx:Issuer'
+            "type": ["VerifiableCredential", "gx:Issuer"], 
+            "issuer": participantDid+vcId2,
+            "validFrom": validFrom,
+            "validUntil": validUntil,
+            "credentialSubject": {
+                // The subject is the entity that is the Issuer
+                "@id": participantDid, 
+                "gx:termsAndConditions": {
+                    "@id": tcVcId,
+                }
+            }
+        };
+
+        alert("Here is the debug GX:Issuer VC Payload (Non-Standard):\n" + JSON.stringify(issuerVcPayload, null, 2));
+
+
+        // Sign gx:Issuer VC
+        let response2 = await fetch("/api/sign-vc", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            // CRITICAL FIX: Passing the correctly named payload
+            body: JSON.stringify({ vcPayload: issuerVcPayload }) 
+        });
+        let rawVc2 = await response2.text();
+        if (!response2.ok) throw new Error(`GX:Issuer VC signing failed with status ${response2.status}: ${rawVc2}`);
+
+        let decodedPayload2 = decodeJwt(rawVc2);
+
+        // Save globally
+        gaiaxIssuerVcJwt = rawVc2; // CRITICAL FIX: Save rawVc2, not rawVc
+        
+        step2VcDisplay.textContent += `\n\n--- GX:Issuer VC (Non-Standard) ---\nRaw JWT:\n${rawVc2}\n\nPayload:\n${JSON.stringify(decodedPayload2, null, 2)}`;
+        
+        notification.textContent = "🎉 Step 2b Complete! Legal Person VC and gx:Issuer VC successfully issued.";
         notification.className = "notification-success";
+
+// --------------------------------------------------------------------------
 
     } catch (error) {
         notification.textContent = `❌ Failed to issue Legal Participant VC: ${error.message}`;
