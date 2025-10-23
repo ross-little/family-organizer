@@ -1316,12 +1316,12 @@ async function selfIssueLegalParticipantVc(tcVcId) {
             "@id": vcId2,
             // Per your request, setting type to 'gx:Issuer'
             "type": ["VerifiableCredential", "gx:Issuer"], 
-            "issuer": participantDid+vcId2,
+            "issuer": participantDid,
             "validFrom": validFrom,
             "validUntil": validUntil,
             "credentialSubject": {
                 // The subject is the entity that is the Issuer
-                "@id": participantDid, 
+                "@id": participantDid+vcId2, 
                 "gx:termsAndConditions": {
                     "@id": tcVcId,
                 }
