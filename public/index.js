@@ -976,11 +976,11 @@ async function gaiaxComplianceVc() {
                 "id": `data:application/vc+jwt,${gaiaxTermsVcJwt}`,
                 "type": "EnvelopedVerifiableCredential"
             },
-        //    {
-        //        "@context": "https://www.w3.org/ns/credentials/v2",
-        //        "id": `data:application/vc+jwt,${gaiaxIssuerVcJwt}`,
-        //        "type": "EnvelopedVerifiableCredential"
-        //    },
+            {
+                "@context": "https://www.w3.org/ns/credentials/v2",
+                "id": `data:application/vc+jwt,${gaiaxIssuerVcJwt}`,
+                "type": "EnvelopedVerifiableCredential"
+            },
             {
                 "@context": "https://www.w3.org/ns/credentials/v2",
                 "id": `data:application/vc+jwt,${gaiaxParticipantVcJwt}`,
@@ -1328,7 +1328,8 @@ async function selfIssueLegalParticipantVc(tcVcId) {
             "credentialSubject": {
                 // The subject is the entity that is the Issuer
                 "@id": `${participantDid}#Issuer`,
-                "gx:gaiaxTermsAndConditions": tcHashHex
+                "gx:gaiaxTermsAndConditions": "4bd7554097444c960292b4726c2efa1373485e8a5565d94d41195214c5e0ceb3"
+                // ********** Note: The gx:gaiaxTermsAndConditions value is hardcoded as per obtained from the SHACL for development
             }
         };
 
