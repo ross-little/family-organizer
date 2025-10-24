@@ -1328,7 +1328,7 @@ async function selfIssueLegalParticipantVc(tcVcId) {
             "credentialSubject": {
                 // The subject is the entity that is the Issuer
                 "@id": `${participantDid}#Issuer`,
-                "gx:gaiaxTermsAndConditions" => tcHashHex
+                "gx:gaiaxTermsAndConditions": tcHashHex
             }
         };
 
