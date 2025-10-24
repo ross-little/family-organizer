@@ -976,11 +976,11 @@ async function gaiaxComplianceVc() {
                 "id": `data:application/vc+jwt,${gaiaxTermsVcJwt}`,
                 "type": "EnvelopedVerifiableCredential"
             },
-                        {
-                "@context": "https://www.w3.org/ns/credentials/v2",
-                "id": `data:application/vc+jwt,${gaiaxIssuerVcJwt}`,
-                "type": "EnvelopedVerifiableCredential"
-            },
+        //    {
+        //        "@context": "https://www.w3.org/ns/credentials/v2",
+        //        "id": `data:application/vc+jwt,${gaiaxIssuerVcJwt}`,
+        //        "type": "EnvelopedVerifiableCredential"
+        //    },
             {
                 "@context": "https://www.w3.org/ns/credentials/v2",
                 "id": `data:application/vc+jwt,${gaiaxParticipantVcJwt}`,
