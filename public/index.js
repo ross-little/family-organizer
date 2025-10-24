@@ -1067,6 +1067,18 @@ async function gaiaxComplianceVc() {
         const complianceVcJwt = await complianceResponse.text();
         console.log("[GAIA-X] ✅ Received Compliance VC (JWT):", complianceVcJwt.substring(0, 400) + "...");
         alert("✅ GAIA-X Compliance VC successfully created and received.");
+        // Display the received Compliance VC JWT
+        const complianceVcDisplay = document.getElementById("complianceVcDisplay");
+        complianceVcDisplay.style.display = "block";
+        complianceVcDisplay.textContent =
+            `--- GAIA-X Compliance VC (JWT) ---\n${complianceVcJwt}`;
+        // Show in the debug box as well
+        const debugBox = document.getElementById("ssiDebug");
+        if (debugBox) {
+            debugBox.textContent += `\n[${new Date().toISOString()}] GAIA-X Compliance VC (JWT):\n${complianceVcJwt}`;
+            debugBox.scrollTop = debugBox.scrollHeight;
+        }   
+        
     } catch (error) {
         console.error("[GAIA-X] Compliance VC creation failed:", error);
         alert(`❌ GAIA-X Compliance VC creation failed: ${error.message}`);
