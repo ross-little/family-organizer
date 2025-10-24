@@ -1109,6 +1109,8 @@ async function selfIssueTermsAndConditionsVc() {
             .join("");
 
         const vcId = `${APP_BASE_URL}/credentials/${uuidv4()}`;
+       
+        
         tCVcId = vcId; // Save for later use in Legal Participant VC;
         console.log("[GAIA-X] T&C VC ID:", vcId);
 
@@ -1119,13 +1121,12 @@ async function selfIssueTermsAndConditionsVc() {
                 "https://w3id.org/gaia-x/development#"
             ],
             type: ["VerifiableCredential", "gx:TermsAndConditions"],
-            "issuer": participantDid,
             "@id": vcId,
-            issuer: participantDid,
+            "issuer":participantDid,
             "validFrom": validFrom,
             "validUntil": validUntil,
             credentialSubject: {
-                "@id":participantDid+vcId,
+                "@id": `${participantDid}#TermsAndConditions`,
                 "gx:hash": hashHex,
                 "gx:url": { "@value": termsUrl, "@type": "xsd:anyURI" }
             }
@@ -1220,8 +1221,10 @@ async function selfIssueLegalParticipantVc(tcVcId) {
             "issuer":participantDid,
             "validFrom":validFrom,
             "credentialSubject":{
-                "@id":participantDid+vcId,
-             //   "gx:legalName":"Eviden",
+                "@id": `${participantDid}#LegalPerson`,
+            // "gx:legalName":"Eviden",
+            //    "name": "Eviden",
+            //    "description": "Family Organizer platform providing digital credentials demo",
                 "gx:legalAddress":{
                     "@type":"gx:Address",
                     "gx:countryCode":legalCountry
@@ -1321,7 +1324,7 @@ async function selfIssueLegalParticipantVc(tcVcId) {
             "validUntil": validUntil,
             "credentialSubject": {
                 // The subject is the entity that is the Issuer
-                "@id": participantDid+vcId2, 
+                "@id": `${participantDid}#Issuer`,
                 "gx:termsAndConditions": {
                     "@id": tcVcId,
                 }
