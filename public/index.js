@@ -45,6 +45,7 @@ let tCVcId = null;                 // ID of the T&C VC
 let registrationVcId = null;       // ID of the Registration VC 
 let globalRegId = null;        // Global Legal Registration ID for Step 2   
 let gaiaxIssuerVcJwt = null;        // Step 2b: Issuer VC   
+let tcHashHex = null;              // SHA-512 hash of T&Cs text (global for reuse)
 
 
 
@@ -1107,6 +1108,8 @@ async function selfIssueTermsAndConditionsVc() {
         hashHex = Array.from(new Uint8Array(hashBuffer))
             .map(b => b.toString(16).padStart(2, "0"))
             .join("");
+        tcHashHex = hashHex; // Save for later use in Legal Participant VC
+        console.log("[GAIA-X] T&C SHA-512 Hash:", hashHex);
 
         const vcId = `${APP_BASE_URL}/credentials/${uuidv4()}`;
        
@@ -1236,13 +1239,13 @@ async function selfIssueLegalParticipantVc(tcVcId) {
                 "gx:headquartersAddress":{
                     "@type":"gx:Address",
                     "gx:countryCode":hqCountry
-                    },
+                    }
                 //"gx:vatID":{
                 //    "@id":registrationVcId
                 //    },
-                "gx:termsAndConditions": {
-                    "@id":tcVcId,
-                    }   
+                //"gx:termsAndConditions": {
+                //    "@id":tcVcId,
+                //    }   
                 },
             "validUntil":validUntil
             };
@@ -1325,9 +1328,7 @@ async function selfIssueLegalParticipantVc(tcVcId) {
             "credentialSubject": {
                 // The subject is the entity that is the Issuer
                 "@id": `${participantDid}#Issuer`,
-                "gx:termsAndConditions": {
-                    "@id": tcVcId,
-                }
+                "gx:gaiaxTermsAndConditions" => tcHashHex
             }
         };
 
