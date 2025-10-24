@@ -679,7 +679,7 @@ app.get("/.well-known/did.json", (req, res) => {
             const jwkResult = createJwkFromP256Pem(pubKeyPem);
                 
             // Protocol must be explicitly included for the URI: https://<domain>
-            const x5uUri = `https://${DOMAIN}/.well-known/cert/0000_cert.pem`;
+            const x5uUri = `https://${DOMAIN}/.well-known/fullpem/0001_chain.pem`;
             const base64Leaf = leafPem
             .replace(/-----BEGIN CERTIFICATE-----/, "")
             .replace(/-----END CERTIFICATE-----/, "")
@@ -693,8 +693,8 @@ app.get("/.well-known/did.json", (req, res) => {
                 crv: "P-256", // Standard name for JWK/DID-JWK
                 x: jwkResult.x,
                 y: jwkResult.y,
-                //x5u: x5uUri,
-                x5c:[base64Leaf],
+                x5u: x5uUri,
+                // x5c:[base64Leaf],
                 // Include debug info temporarily
                 _debug: jwkResult._debug 
             };
