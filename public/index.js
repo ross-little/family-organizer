@@ -1065,20 +1065,35 @@ async function gaiaxComplianceVc() {
 
         // Success: Read the response from the external API
         const complianceVcJwt = await complianceResponse.text();
-        console.log("[GAIA-X] ✅ Received Compliance VC (JWT):", complianceVcJwt.substring(0, 400) + "...");
+        console.log("[GAIA-X] ✅ Received Compliance VC (JWT):", complianceVcJwt.substring(0, 1400) + "...");
         alert("✅ GAIA-X Compliance VC successfully created and received.");
         // Display the received Compliance VC JWT
-        const complianceVcDisplay = document.getElementById("complianceVcDisplay");
-        complianceVcDisplay.style.display = "block";
-        complianceVcDisplay.textContent =
-            `--- GAIA-X Compliance VC (JWT) ---\n${complianceVcJwt}`;
+        // === Display GAIA-X Compliance VC on page ===
+        // === Display GAIA-X Compliance VC on page ===
+        const complianceVcDisplay = document.getElementById("step3DecodedVcDisplay");
+        const complianceVcContainer = document.getElementById("step3VcContainer");
+
+        if (complianceVcDisplay) {
+        if (complianceVcContainer) complianceVcContainer.style.display = "block";
+        
+        // 🟩 Add these two lines for visual wrapping of long JWTs
+        complianceVcDisplay.style.whiteSpace = "pre-wrap";
+        complianceVcDisplay.style.wordBreak = "break-all";
+
+        complianceVcDisplay.textContent = complianceVcJwt;
+        } else {
+        console.warn("[GAIA-X] #step3DecodedVcDisplay element not found");
+        }
+
+
+
         // Show in the debug box as well
         const debugBox = document.getElementById("ssiDebug");
         if (debugBox) {
-            debugBox.textContent += `\n[${new Date().toISOString()}] GAIA-X Compliance VC (JWT):\n${complianceVcJwt}`;
+            debugBox.textContent += `\n[${new Date().toISOString()}] ******** GAIA-X Compliance VC (JWT):\n${complianceVcJwt}`;
             debugBox.scrollTop = debugBox.scrollHeight;
         }   
-        
+
     } catch (error) {
         console.error("[GAIA-X] Compliance VC creation failed:", error);
         alert(`❌ GAIA-X Compliance VC creation failed: ${error.message}`);
