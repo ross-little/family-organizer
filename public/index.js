@@ -467,10 +467,15 @@ function startListeningForLogin(nonce) {
 
     es.onmessage = async (event) => {
         try {
+            // ✅ FIX: Check for empty or whitespace-only data before parsing
+            if (!event.data || typeof event.data !== 'string' || event.data.trim() === "") {
+                console.log("[SSE] Received heartbeat or empty message, skipping parse.");
+                return; 
+            }
             const message = JSON.parse(event.data);
 
             // 🔍 Always log the raw message
-            console.log("[SSE] Received:", message);
+            console.log("[SSE] *****SSE EVENT*********** Received:", message);
 
             // Optional: show in debug panel
             const debugBox = document.getElementById("ssiDebug");
