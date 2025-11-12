@@ -409,11 +409,11 @@ async function initiateSsiLogin() {
     currentNonce = crypto.randomUUID();
     const state = crypto.randomUUID();
 
-    const authUrl = new URL("https://uself-issuer-agent.cyclops1618.gleeze.com/auth/authorize");
+    const authUrl = new URL("https://uself-issuer-agent.cyclops314.gleeze.com/auth/authorize");
     authUrl.searchParams.set("scope", "openid EmployeeCredential");
     authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops1618.gleeze.com");
-    authUrl.searchParams.set("redirect_uri", "https://uself-issuer-agent.cyclops1618.gleeze.com/direct_post");
+    authUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops314.gleeze.com");
+    authUrl.searchParams.set("redirect_uri", "https://uself-issuer-agent.cyclops314.gleeze.com/direct_post");
     authUrl.searchParams.set("state", state);
     authUrl.searchParams.set("nonce", currentNonce);
     authUrl.searchParams.set("redirect", "false");
@@ -461,7 +461,7 @@ async function initiateSsiLogin() {
 // ===== SSE Listener =====
 function startListeningForLogin(nonce) {
     if (currentSse) return;
-    const subscribeUrl = `https://uself-issuer-agent.cyclops1618.gleeze.com/sse-server/stream-events/${nonce}`;
+    const subscribeUrl = `https://uself-issuer-agent.cyclops314.gleeze.com/sse-server/stream-events/${nonce}`;
     const es = new EventSource(subscribeUrl);
     currentSse = es;
 
@@ -507,9 +507,9 @@ async function handleAuthenticated(message) {
         const inner = JSON.parse(message.message || "{}");
         const code = inner.code;
 
-        const tokenUrl = new URL("https://uself-issuer-agent.cyclops1618.gleeze.com/auth/token");
+        const tokenUrl = new URL("https://uself-issuer-agent.cyclops314.gleeze.com/auth/token");
         tokenUrl.searchParams.set("grant_type", "authorization_code");
-        tokenUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops1618.gleeze.com");
+        tokenUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops314.gleeze.com");
         tokenUrl.searchParams.set("code", code);
 
         const tokenResp = await fetch(tokenUrl.toString(), {

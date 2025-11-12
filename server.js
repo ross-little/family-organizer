@@ -388,7 +388,8 @@ function createJwkFromP256Pem(pem) {
 // ... (rest of express setup code)
 // const app = express();
 app.use(cors({
-    origin: IS_PROD ? DOMAIN : 'http://localhost:3000', // Allow CORS from your domain
+    origin: IS_PROD ? DOMAIN : '*', // Allow CORS from your domain
+    // origin: IS_PROD ? DOMAIN : 'http://localhost:3000', // Allow CORS from your domain
     credentials: true // Crucial for sending cookies cross-origin/with CORS
 }));
 app.use(bodyParser.json());
