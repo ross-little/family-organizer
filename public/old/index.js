@@ -409,21 +409,11 @@ async function initiateSsiLogin() {
     currentNonce = crypto.randomUUID();
     const state = crypto.randomUUID();
 
-    // const REDIRECT_URI = `https://uself-issuer-agent.cyclops1618.gleeze.com/direct_post`;
-    // Update for code flow redirect to the RP backend instead of the Auth Server Agent
-
-    // NOTE: The DOMAIN variable from server.js isn't available here, so we'll use window.location.host
-    // This assumes the frontend is served from the same domain as the backend.
-    const DOMAIN = window.location.host; 
-    const REDIRECT_URI = `https://${DOMAIN}/auth/direct_post`; // <--- NEW REDIRECT URI
-
-    
-
-    const authUrl = new URL("https://uself-issuer-agent.cyclops1618.gleeze.com/auth/authorize");
+    const authUrl = new URL("https://uself-issuer-agent.cyclops314.gleeze.com/auth/authorize");
     authUrl.searchParams.set("scope", "openid EmployeeCredential");
     authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops1618.gleeze.com");
-    authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
+    authUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops314.gleeze.com");
+    authUrl.searchParams.set("redirect_uri", "https://uself-issuer-agent.cyclops314.gleeze.com/direct_post");
     authUrl.searchParams.set("state", state);
     authUrl.searchParams.set("nonce", currentNonce);
     authUrl.searchParams.set("redirect", "false");
@@ -452,9 +442,7 @@ async function initiateSsiLogin() {
 
         qrSpinner.style.display = "none";
 
-        // startListeningForLogin(currentNonce);
-        // Update to use the server.js SSE Events for code flow on the "state"
-        startListeningForLogin(state);
+        startListeningForLogin(currentNonce);
 
         document.addEventListener("visibilitychange", () => {
             if (!document.hidden && !currentSse && currentNonce) startListeningForLogin(currentNonce);
@@ -470,48 +458,85 @@ async function initiateSsiLogin() {
     }
 }
 
-function startListeningForLogin(state) { //Update to use "state" instead of "nonce" for code flow
-  if (currentSse) return;
-  // const subscribeUrl = `https://uself-issuer-agent.cyclops1618.gleeze.com/sse-server/stream-events/${nonce}`;
-  // Update for code flow to use "state" instead of "nonce" and Server.js SSE endpoint
-    const subscribeUrl = `/sse-server/stream-events/${state}`;
-  // const subscribeUrl = `https://uself-issuer-agent.cyclops1618.gleeze.com/sse-server/stream-events/${nonce}`;
+// ===== SSE Listener =====
 
-  const es = new EventSource(subscribeUrl);
-  currentSse = es;
+// ===== SSE Listener =====
+function startListeningForLogin(nonce) {
+    if (currentSse) return;
 
-  es.onmessage = async (event) => {
-    try {
-      const message = JSON.parse(event.data);
+    const subscribeUrl = `https://uself-issuer-agent.cyclops314.gleeze.com/sse-server/stream-events/${nonce}`;
+    const es = new EventSource(subscribeUrl);
+    currentSse = es;
 
-      // 🔍 Always log the raw message
-      console.log("[SSE] Received:", message);
+    es.onmessage = async (event) => {
+        try {
+            const raw = event.data;
+            console.log("EEEEEEEEEEEEEvent raw data:", event.data);
+            const trimmed = raw ? raw.trim() : "";
+            if (!trimmed) {
+                console.log("[SSE] Empty message or heartbeat, skipping.");
+                return;
+            }
 
-      // Optional: show in debug panel
-      const debugBox = document.getElementById("ssiDebug");
-      if (debugBox) {
-        debugBox.textContent += `\n[${new Date().toISOString()}] ${JSON.stringify(message)}`;
-        debugBox.scrollTop = debugBox.scrollHeight;
-      }
+            let message;
 
-      // ✅ Still handle login success
-      if (message.status === "AUTHENTICATED") {
-        handleAuthenticated(message);
-      }
-    } catch (err) {
-      console.error("[SSE] Message parse error:", err, event.data);
-    }
-  };
+            // 1️⃣ JSON payloads
+            if (trimmed.startsWith("{") && trimmed.includes(":")) {
+                try {
+                    message = JSON.parse(trimmed);
+                    console.log("[SSE] Parsed JSON message:", message);
+                } catch {
+                    // fallback to custom parsing
+                    message = parseKeyValueFormat(trimmed);
+                    console.log("[SSE] Parsed key=value format:", message);
+                }
+            } 
+            // 2️⃣ Non-JSON “Java style” fallback
+            else {
+                message = parseKeyValueFormat(trimmed);
+                console.log("[SSE] Parsed fallback format:", message);
+            }
 
-  es.onerror = (err) => {
-    console.error("[SSE] Connection error:", err);
-    es.close();
-    currentSse = null;
-  };
+            // Debug panel update
+            const debugBox = document.getElementById("ssiDebug");
+            if (debugBox) {
+                debugBox.textContent += `\n[${new Date().toISOString()}] ${JSON.stringify(message)}`;
+                debugBox.scrollTop = debugBox.scrollHeight;
+            }
+
+            if (message?.status?.toUpperCase() === "AUTHENTICATED") {
+                console.log("✅ AUTHENTICATED event received:", message);
+                console.log("Event raw data:", event.data);
+                handleAuthenticated(message);
+            }
+        } catch (err) {
+            console.error("[SSE] Message handling error:", err, event.data);
+        }
+    };
+
+    es.onerror = (err) => {
+        console.error("[SSE] Connection error:", err);
+        es.close();
+        currentSse = null;
+    };
+}
+
+// ---- Helper for custom formats like {id=123, status=AUTHENTICATED, message={...}} ----
+function parseKeyValueFormat(str) {
+    // remove wrapping braces or parentheses
+    str = str.replace(/^[{(]|[})]$/g, "");
+    const result = {};
+    str.split(/,\s*/).forEach(pair => {
+        const [k, v] = pair.split("=", 2);
+        if (k && v) result[k.trim()] = v.trim();
+    });
+    return result;
 }
 
 
+
 // ===== Handle Authenticated (SSI) =====
+
 async function handleAuthenticated(message) {
     if (currentSse) {
         currentSse.close();
@@ -519,12 +544,27 @@ async function handleAuthenticated(message) {
     }
 
     try {
-        const inner = JSON.parse(message.message || "{}");
-        const code = inner.code;
+        let inner = {};
 
-        const tokenUrl = new URL("https://uself-issuer-agent.cyclops1618.gleeze.com/auth/token");
+        // ✅ FIX #1: Safely parse inner message only if JSON
+        if (message.message && message.message.trim().startsWith("{")) {
+            try {
+                inner = JSON.parse(message.message);
+            } catch (err) {
+                console.error("Invalid inner JSON message:", message.message);
+            }
+        }
+
+        const code = inner.code;
+        if (!code) {
+            console.error("❌ No authorization code found in message:", message);
+            return;
+        }
+
+        // ✅ FIX #2: Token exchange logic unchanged
+        const tokenUrl = new URL("https://uself-issuer-agent.cyclops314.gleeze.com/auth/token");
         tokenUrl.searchParams.set("grant_type", "authorization_code");
-        tokenUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops1618.gleeze.com");
+        tokenUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops314.gleeze.com");
         tokenUrl.searchParams.set("code", code);
 
         const tokenResp = await fetch(tokenUrl.toString(), {
@@ -549,16 +589,18 @@ async function handleAuthenticated(message) {
         const user = { id, email, name, picture: null };
         console.log("Current SSI user object:", user);
 
-        // Reuse the same post-login function as Google
+        // ✅ FIX #3: Reuse post-login handler
         await handlePostLogin(user);
 
-        // Close QR modal if open
-        document.getElementById("qrCodeModal").style.display = "none";
+        // ✅ FIX #4: Close QR modal if open
+        const qrModal = document.getElementById("qrCodeModal");
+        if (qrModal) qrModal.style.display = "none";
 
     } catch (err) {
         console.error("❌ SSI handleAuthenticated error:", err);
     }
 }
+
 
 // ===== GAIA-X VC Operations (Utilities) =====
 

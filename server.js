@@ -18,6 +18,12 @@ import session from "express-session";
 // ... (rest of express setup code)
 const app = express();
 
+// Add these new lines to the top of the file, after the imports:
+// ===== SSE In-Memory Store =====
+// Maps nonce -> { code: '...', status: 'AUTHENTICATED' }
+const sseEventStore = new Map();
+// Maps nonce -> Response object (for long polling / SSE)
+const sseClients = new Map();
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -808,6 +814,103 @@ app.post("/api/verify-vp", async (req, res) => {
     console.error("❌ VP JWT verification failed:", err.message);
     res.status(400).json({ error: err.message });
   }
+});
+
+// =========================================================
+// ===== OAUTH2/OIDC & SSE Endpoints =====
+// =========================================================
+
+/**
+ * 1. Authorization Response Endpoint
+ * This receives the OIDC/OAuth2 'code' from the SSI Wallet Agent (via the redirect_uri).
+ */
+app.get("/auth/direct_post", (req, res) => {
+    const { code, state } = req.query;
+
+    console.log("--- Authorization Response Received ---");
+    console.log(`[Auth] Code: ${code ? 'RECEIVED' : 'MISSING'}, State: ${state ? 'RECEIVED' : 'MISSING'}`);
+
+    if (!code || !state) {
+        // Log the error and redirect back to the app with a simple error message.
+        console.error("[Auth] Missing required parameters: code or state.");
+        return res.redirect(`/?error=auth_failed`);
+    }
+
+    // --- 1. Store the code and status (AUTHENTICATED)
+    sseEventStore.set(state, { status: "AUTHENTICATED", code, state });
+    console.log(`[Auth] Stored code for state: ${state}. Ready to notify client.`);
+
+    // --- 2. Notify waiting client via SSE
+    if (sseClients.has(state)) {
+        const clientRes = sseClients.get(state);
+        const message = { status: "AUTHENTICATED", message: JSON.stringify({ code, state }) };
+
+        // Send the event to the waiting client
+        clientRes.write(`event: message\n`);
+        clientRes.write(`data: ${JSON.stringify(message)}\n\n`);
+        
+        // Clean up immediately after sending the message
+        clientRes.end();
+        sseClients.delete(state);
+        console.log(`[Auth] Client for state ${state} notified and connection closed.`);
+    } else {
+        // If the client isn't connected yet, the store will hold the event.
+        // The client will check the store upon connecting.
+        console.log(`[Auth] Client for state ${state} not connected yet. Event is queued.`);
+    }
+
+    // --- 3. Final action: Redirect the user's browser back to the main app
+    // The Wallet Agent itself will handle the code exchange, so this only needs to
+    // redirect the *browser* back to the front-end application's URL.
+    res.redirect("/");
+});
+
+/**
+ * 2. SSE Stream Endpoint
+ * This allows the client (index.js) to subscribe and wait for an event tied to the state.
+ */
+app.get("/sse-server/stream-events/:state", (req, res) => {
+    const state = req.params.state;
+    console.log(`--- SSE Subscription Request ---`);
+    console.log(`[SSE] Client connecting for state: ${state}`);
+
+    // Set headers for SSE
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        // --- ADD THESE TWO LINES FOR CORS SUPPORT ---
+        'Access-Control-Allow-Origin': '*', 
+        'Access-Control-Allow-Credentials': 'true'
+    });
+    
+    // Send a keep-alive comment immediately
+    res.write(':ok\n\n');
+
+    // --- 1. Check for pre-existing event (race condition check) ---
+    if (sseEventStore.has(state)) {
+        const eventData = sseEventStore.get(state);
+        const message = { status: eventData.status, message: JSON.stringify({ code: eventData.code, state: eventData.state }) };
+        
+        // Send the queued event immediately
+        res.write(`event: message\n`);
+        res.write(`data: ${JSON.stringify(message)}\n\n`);
+        
+        // Clean up the store and close the connection
+        sseEventStore.delete(state);
+        console.log(`[SSE] Queued event for state ${state} delivered and store cleared.`);
+        return res.end();
+    }
+
+    // --- 2. If no pre-existing event, register the client for future events ---
+    sseClients.set(state, res);
+    console.log(`[SSE] Client registered for state: ${state}. Total clients: ${sseClients.size}`);
+
+    // Set a timeout to remove the client if the connection is closed
+    req.on('close', () => {
+        console.log(`[SSE] Client disconnected for state: ${state}`);
+        sseClients.delete(state);
+    });
 });
 
 // ===== Serve index.html for SPA (Standard) =====
