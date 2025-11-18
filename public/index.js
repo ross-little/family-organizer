@@ -46,6 +46,7 @@ let registrationVcId = null;       // ID of the Registration VC
 let globalRegId = null;        // Global Legal Registration ID for Step 2   
 let gaiaxIssuerVcJwt = null;        // Step 2b: Issuer VC   
 let tcHashHex = null;              // SHA-512 hash of T&Cs text (global for reuse)
+let gaiaxDCvcJwt = null;          // Step 2b: Data Consumer VC
 
 
 
@@ -996,6 +997,11 @@ async function gaiaxComplianceVc() {
                 "id": `data:application/vc+jwt,${gaiaxIssuerVcJwt}`,
                 "type": "EnvelopedVerifiableCredential"
             },
+                        {
+                "@context": "https://www.w3.org/ns/credentials/v2",
+                "id": `data:application/vc+jwt,${gaiaxDCvcJwt}`,
+                "type": "EnvelopedVerifiableCredential"
+            },
             {
                 "@context": "https://www.w3.org/ns/credentials/v2",
                 "id": `data:application/vc+jwt,${gaiaxParticipantVcJwt}`,
@@ -1080,6 +1086,23 @@ async function gaiaxComplianceVc() {
 
         // Success: Read the response from the external API
         const complianceVcJwt = await complianceResponse.text();
+
+        const decodedComplianceVC = decodeJwt(complianceVcJwt); 
+                    // --- LOG RAW JWT TO DEBUG PANEL (as requested) ---
+        // Parse the decodedPayload to get the id of the VC for logging
+  
+        console.log("[GAIA-X] Decoded Compliance VC:", decodedComplianceVC);
+        // --- END LOG RAW JWT TO DEBUG PANEL ---
+        
+        // Store the received Compliance VC JWT to the Server with VcId as key
+        await fetch("/api/store-compliance-vc", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ vcId: complianceVcJwt })
+        }); 
+        
+        
+
         console.log("[GAIA-X] ✅ Received Compliance VC (JWT):", complianceVcJwt.substring(0, 1400) + "...");
         alert("✅ GAIA-X Compliance VC successfully created and received.");
         // Display the received Compliance VC JWT
@@ -1399,9 +1422,74 @@ async function selfIssueLegalParticipantVc(tcVcId) {
         notification.className = "notification-success";
 
 // --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+// ## 2. Create and Sign the Requested gx:DataConsumer VC (Non-Standard)
+// --------------------------------------------------------------------------
+
+        const vcId3 = `${APP_BASE_URL}/credentials/${uuidv4()}`;
+        const DCvcPayload = {
+            "@context": [
+                "https://www.w3.org/ns/credentials/v2",
+                "https://w3id.org/gaia-x/development#"
+            ],
+            "@id":vcId,
+            "type":["VerifiableCredential", "gx:DataConsumer"],
+            "issuer":participantDid,
+            "validFrom":validFrom,
+            "credentialSubject":{
+                "@id": `${participantDid}#DataConsumer`,
+            // "gx:legalName":"Eviden",
+            //    "name": "Eviden",
+            //    "description": "Family Organizer platform providing digital credentials demo",
+                "gx:legalAddress":{
+                    "@type":"gx:Address",
+                    "gx:countryCode":legalCountry
+                    // optional: "gx:street": "...", "gx:locality": "..."
+                    },
+                "gx:registrationNumber":{
+                    "@id":globalRegId,
+                    },
+                "gx:headquartersAddress":{
+                    "@type":"gx:Address",
+                    "gx:countryCode":hqCountry
+                    }
+                //"gx:vatID":{
+                //    "@id":registrationVcId
+                //    },
+                //"gx:termsAndConditions": {
+                //    "@id":tcVcId,
+                //    }   
+                },
+            "validUntil":validUntil
+        };
+
+        alert("Here is the debug GX:DataConsumer VC Payload (Non-Standard):\n" + JSON.stringify(DCvcPayload, null, 2));
+
+
+        // Sign gx:Issuer VC
+        response2 = await fetch("/api/sign-vc", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            // CRITICAL FIX: Passing the correctly named payload
+            body: JSON.stringify({ vcPayload: DCvcPayload }) 
+        });
+        rawVc2 = await response2.text();
+        if (!response2.ok) throw new Error(`GX:DC VC signing failed with status ${response2.status}: ${rawVc2}`);
+
+        decodedPayload2 = decodeJwt(rawVc2);
+
+        // Save globally
+        gaiaxDCvcJwt = rawVc2; // CRITICAL FIX: Save rawVc2, not rawVc
+        
+        step2VcDisplay.textContent += `\n\n--- GX:DataqConsumer VC (Non-Standard) ---\nRaw JWT:\n${rawVc2}\n\nPayload:\n${JSON.stringify(decodedPayload2, null, 2)}`;
+        
+        notification.textContent = "🎉 Step 2b Complete! Legal Person VC and gx:Issuer VC and gx:DataConsumer successfully issued.";
+        notification.className = "notification-success";
+
+// --------------------------------------------------------------------------
 
     } catch (error) {
-        notification.textContent = `❌ Failed to issue Legal Participant VC: ${error.message}`;
+        notification.textContent = `❌ Failed to issue Self-Issued VCs: ${error.message}`;
         notification.className = "notification-error";
         console.error("Legal Participant VC self-issue failed:", error);
     }

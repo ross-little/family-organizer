@@ -24,6 +24,9 @@ const app = express();
 const sseEventStore = new Map();
 // Maps nonce -> Response object (for long polling / SSE)
 const sseClients = new Map();
+// ===== NEW Compliance VC Store =====
+// Maps vcId (URI/URL of the VC) -> Compliance VC JWT (string)
+const complianceVcStore = new Map();
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -423,6 +426,27 @@ function isAuthenticated(req, res, next) {
         res.status(401).send("Unauthorized: Please log in."); 
     }
 }
+
+// ===== API: Store Compliance VC =====
+app.post("/api/store-compliance-vc", isAuthenticated, (req, res) => {
+    // 1. Destructure the required payload
+    const { vcId, complianceVcJwt } = req.body;
+
+    // 2. Input validation
+    if (!vcId || typeof vcId !== 'string' || !complianceVcJwt || typeof complianceVcJwt !== 'string') {
+        console.warn("[VC STORE] Invalid input received.");
+        return res.status(400).send("Invalid or missing vcId or complianceVcJwt.");
+    }
+
+    // 3. Store the JWT using the VC ID as the key
+    complianceVcStore.set(vcId, complianceVcJwt);
+
+    // 4. Log and respond
+    console.log(`[VC STORE] Compliance VC stored successfully for ID: ${vcId}`);
+    console.log(`[VC STORE] Total stored VCs: ${complianceVcStore.size}`);
+
+    res.status(200).json({ success: true, message: "Compliance VC stored successfully." });
+});
 
 // ===== API: ToDo List (EXISTING) =====
 // 5. API routes (login, session/me, logout, todos, etc.)
@@ -863,6 +887,42 @@ app.get("/auth/direct_post", (req, res) => {
     // The Wallet Agent itself will handle the code exchange, so this only needs to
     // redirect the *browser* back to the front-end application's URL.
     res.redirect("/");
+});
+
+
+// ===== API: Resolve VC by ID (VC Resolution Endpoint) =====
+/**
+ * Handles GET requests to resolve a VC by its ID (the URI).
+ * This endpoint should be publicly accessible for VC resolution.
+ */
+app.get("/credentials/:uuid", (req, res) => {
+    const uuid = req.params.uuid;
+
+    if (!uuid) {
+        return res.status(400).send("VC UUID is required.");
+    }
+
+    try {
+        // 1. Construct the full VC ID URI as used for the map key.
+        // It relies on the global DOMAIN constant, assuming the APP_BASE_URL is https://${DOMAIN}
+        const fullVcId = `https://${DOMAIN}/credentials/${uuid}`;
+
+        // 2. Retrieve the Compliance VC JWT from the store
+        const complianceVcJwt = complianceVcStore.get(fullVcId);
+
+        if (!complianceVcJwt) {
+            console.warn(`[VC RESOLUTION] Compliance VC not found for ID: ${fullVcId}`);
+            return res.status(404).send("Verifiable Credential not found.");
+        }
+
+        // 3. Respond with the VC JWT and the correct content type (application/vc+jwt)
+        console.log(`[VC RESOLUTION] Successfully published VC for ID: ${fullVcId}`);
+        res.set("Content-Type", "application/vc+jwt").status(200).send(complianceVcJwt);
+
+    } catch (err) {
+        console.error(`[VC RESOLUTION ERROR]`, err);
+        res.status(500).send(`Error retrieving VC: ${err.message}`);
+    }
 });
 
 /**
