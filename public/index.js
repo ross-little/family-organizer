@@ -539,6 +539,13 @@ async function handleAuthenticated(message) {
 
         const access = tokens.access_token;
         const decoded = decodeJwt(access);
+        // Show decodeJwt in debug panel
+        const debugBox = document.getElementById("ssiDebug");   
+        if (debugBox) {
+            debugBox.textContent += `\n[${new Date().toISOString()}] Decoded Access Token JWT after CODE received: ${JSON.stringify(decoded)}`;
+            debugBox.scrollTop = debugBox.scrollHeight;
+        }
+
 
         const userInfo = decoded.claims?.userInfo || {};
         const email = userInfo.email;
