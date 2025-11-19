@@ -458,10 +458,10 @@ async function initiateSsiLogin() {
         startListeningForLogin(state);
 
         document.addEventListener("visibilitychange", () => {
-            if (!document.hidden && !currentSse && currentNonce) startListeningForLogin(currentNonce);
+            if (!document.hidden && !currentSse && state) startListeningForLogin(state);
         });
         window.addEventListener("focus", () => {
-            if (!currentSse && currentNonce) startListeningForLogin(currentNonce);
+            if (!currentSse && state) startListeningForLogin(state);
         });
 
     } catch (error) {
@@ -496,6 +496,7 @@ function startListeningForLogin(state) { //Update to use "state" instead of "non
       }
 
       // ✅ Still handle login success
+      console.log("[SSE] Message Status Received Is:", message.status);
       if (message.status === "AUTHENTICATED") {
         handleAuthenticated(message);
       }
