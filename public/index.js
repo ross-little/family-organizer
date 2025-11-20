@@ -531,7 +531,10 @@ async function handleAuthenticated(message) {
 
         const tokenResp = await fetch(tokenUrl.toString(), {
             method: "POST",
-            headers: { Accept: "application/json" },
+            headers: { 
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json"
+            },
             body: "" // some APIs require POST body even if empty
         });
 
