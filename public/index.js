@@ -18,6 +18,7 @@ const APP_BASE_URL = isLocalhost
 
 // DOMAIN NAME for the AuthZ Server Agent *****************************************************************************
 const authzServer = "uself-issuer-agent.cyclops1618.gleeze.com"; 
+// const authzServer = "uself-issuer-agent.cyclops314.gleeze.com"; 
 // DOMAIN NAME for the AuthZ Server Agent *****************************************************************************
 
 
@@ -428,10 +429,10 @@ async function initiateSsiLogin() {
 
     
 
-    const authUrl = new URL("https://${authzServer}/auth/authorize");
+    const authUrl = new URL(`https://${authzServer}/auth/authorize`);
     authUrl.searchParams.set("scope", "openid EmployeeCredential");
     authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("client_id", "https://${authzServer}");
+    authUrl.searchParams.set("client_id", `https://${authzServer}`);
     authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
     authUrl.searchParams.set("state", state);
     authUrl.searchParams.set("nonce", currentNonce);
@@ -532,9 +533,9 @@ async function handleAuthenticated(message) {
         const inner = JSON.parse(message.message || "{}");
         const code = inner.code;
 
-        const tokenUrl = new URL("https://${authzServer}/auth/token");
+        const tokenUrl = new URL(`https://${authzServer}/auth/token`);
         tokenUrl.searchParams.set("grant_type", "authorization_code");
-        tokenUrl.searchParams.set("client_id", "https://${authzServer}");
+        tokenUrl.searchParams.set("client_id", `https://${authzServer}`);
         tokenUrl.searchParams.set("code", code);
 
         const tokenResp = await fetch(tokenUrl.toString(), {
