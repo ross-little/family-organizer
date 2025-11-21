@@ -1,3 +1,4 @@
+
 // ===== Imports =====
 
 import { generateDidDoc } from "./didDoc.js";
@@ -14,6 +15,13 @@ const APP_BASE_URL = isLocalhost
 // When testing locally, change this to: "http://localhost:3000"
 // This is used for all self-issued VC IDs and internal URL references.
 // Define activateTab in the global scope so showLoginOptions can call it.
+
+// DOMAIN NAME for the AuthZ Server Agent *****************************************************************************
+const authzServer = "uself-issuer-agent.cyclops1618.gleeze.com"; 
+// DOMAIN NAME for the AuthZ Server Agent *****************************************************************************
+
+
+
 const panels = {
     login: document.getElementById("loginPanel"),
     todo: document.getElementById("todoPanel"),
@@ -410,7 +418,7 @@ async function initiateSsiLogin() {
     currentNonce = crypto.randomUUID();
     const state = crypto.randomUUID();
 
-    // const REDIRECT_URI = `https://uself-issuer-agent.cyclops314.gleeze.com/direct_post`;
+    // const REDIRECT_URI = `https://${authzServer}/direct_post`;
     // Update for code flow redirect to the RP backend instead of the Auth Server Agent
 
     // NOTE: The DOMAIN variable from server.js isn't available here, so we'll use window.location.host
@@ -420,10 +428,10 @@ async function initiateSsiLogin() {
 
     
 
-    const authUrl = new URL("https://uself-issuer-agent.cyclops314.gleeze.com/auth/authorize");
+    const authUrl = new URL("https://${authzServer}/auth/authorize");
     authUrl.searchParams.set("scope", "openid EmployeeCredential");
     authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops314.gleeze.com");
+    authUrl.searchParams.set("client_id", "https://${authzServer}");
     authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
     authUrl.searchParams.set("state", state);
     authUrl.searchParams.set("nonce", currentNonce);
@@ -473,10 +481,10 @@ async function initiateSsiLogin() {
 
 function startListeningForLogin(state) { //Update to use "state" instead of "nonce" for code flow
   if (currentSse) return;
-  // const subscribeUrl = `https://uself-issuer-agent.cyclops314.gleeze.com/sse-server/stream-events/${nonce}`;
+  // const subscribeUrl = `https://${authzServer}/sse-server/stream-events/${nonce}`;
   // Update for code flow to use "state" instead of "nonce" and Server.js SSE endpoint
     const subscribeUrl = `/sse-server/stream-events/${state}`;
-  // const subscribeUrl = `https://uself-issuer-agent.cyclops314.gleeze.com/sse-server/stream-events/${nonce}`;
+  // const subscribeUrl = `https://${authzServer}/sse-server/stream-events/${nonce}`;
 
   const es = new EventSource(subscribeUrl);
   currentSse = es;
@@ -524,9 +532,9 @@ async function handleAuthenticated(message) {
         const inner = JSON.parse(message.message || "{}");
         const code = inner.code;
 
-        const tokenUrl = new URL("https://uself-issuer-agent.cyclops314.gleeze.com/auth/token");
+        const tokenUrl = new URL("https://${authzServer}/auth/token");
         tokenUrl.searchParams.set("grant_type", "authorization_code");
-        tokenUrl.searchParams.set("client_id", "https://uself-issuer-agent.cyclops314.gleeze.com");
+        tokenUrl.searchParams.set("client_id", "https://${authzServer}");
         tokenUrl.searchParams.set("code", code);
 
         const tokenResp = await fetch(tokenUrl.toString(), {
