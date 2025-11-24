@@ -1106,6 +1106,8 @@ async function gaiaxComplianceVc() {
 
         // Success: Read the response from the external API
         const complianceVcJwt = await complianceResponse.text();
+        console.log("[GAIA-X] Compliance Label JWT VC:", complianceVcJwt);
+        // --- END LOG RAW JWT TO DEBUG PANEL ---
 
         const decodedComplianceVC = decodeJwt(complianceVcJwt); 
                     // --- LOG RAW JWT TO DEBUG PANEL (as requested) ---
