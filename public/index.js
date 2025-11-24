@@ -1109,11 +1109,10 @@ async function gaiaxComplianceVc() {
         console.log("[GAIA-X] Compliance Label JWT VC:", complianceVcJwt);
         // --- END LOG RAW JWT TO DEBUG PANEL ---
 
-        const decodedComplianceVC = decodeJwt(complianceVcJwt); 
-                    // --- LOG RAW JWT TO DEBUG PANEL (as requested) ---
+        // --- LOG RAW JWT TO DEBUG PANEL (as requested) ---
         // Parse the decodedPayload to get the id of the VC for logging
-  
-        console.log("[GAIA-X] Decoded Compliance VC:", decodedComplianceVC);
+        //*********** */    // const decodedComplianceVC = decodeJwt(complianceVcJwt); 
+        //*********** */    // console.log("[GAIA-X] Decoded Compliance VC:", decodedComplianceVC);
         // --- END LOG RAW JWT TO DEBUG PANEL ---
         
         // Correct structure based on your server-side logic:
@@ -1122,7 +1121,8 @@ async function gaiaxComplianceVc() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
                 // 1. Pass the decoded VC's ID
-                vcId: decodedComplianceVC.vc.id, 
+                // vcId: decodedComplianceVC.vc.id, 
+                vcId: vcId,
                 // 2. Pass the raw JWT string
                 complianceVcJwt: complianceVcJwt 
             })
