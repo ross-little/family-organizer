@@ -38,6 +38,7 @@
       <button class="menu-btn active" id="loginTab">Login</button>
       <button class="menu-btn" id="todoTab" disabled>ToDo List</button>
       <button class="menu-btn" id="didTab" disabled>DID Doc</button>
+      <button class="menu-btn" id="autoGTab" disabled>autoG</button>
       <button class="menu-btn" id="gaiaxTab" disabled>GAIA-X</button>
       <button class="menu-btn logout-btn">Logout</button>
     </div>
@@ -92,6 +93,11 @@
       <div id="didPanel" style="display:none;">
         <h3>DID Document</h3>
         <pre id="didJson">Loading DID Document...</pre>
+      </div>
+
+      <div id="autoGPanel" style="display:none;">
+        <h3>Automatic GAIA-X Onboarding</h3>
+        <pre id="autoGxVc">Requesting GAIA-X Compliance Label Verifiable Credential...</pre>
       </div>
 
       <div id="gaiaxPanel" style="display:none;">

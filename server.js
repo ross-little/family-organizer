@@ -973,6 +973,24 @@ app.get("/sse-server/stream-events/:state", (req, res) => {
     });
 });
 
+
+// ===== API: Request GAIA-X Compliance Lable VC) =====
+/**
+ * 
+ * 
+ */
+app.post("/api/gaiax", async (req, res) => {
+  const complianceReq = req.body?.complianceReq;
+
+  if (!complianceReq) {
+    return res.status(400).json({ error: "Missing Verifiable Credentials in request body" });
+  }
+
+});
+
+
+
+
 // ===== Serve index.html for SPA (Standard) =====
 app.get("/", (req, res) => {
     res.sendFile(path.join(process.cwd(), "public", "index.html"));

@@ -27,6 +27,7 @@ const panels = {
     login: document.getElementById("loginPanel"),
     todo: document.getElementById("todoPanel"),
     did: document.getElementById("didPanel"),
+    autoG: document.getElementById("autoGPanel"),
     gaiax: document.getElementById("gaiaxPanel"),
 };
 const tabElements = {}; // Will be populated in DOMContentLoaded
@@ -187,6 +188,7 @@ function showLoginOptions() {
     //document.getElementById("loginPanel").style.display = "block";
     document.getElementById("todoPanel").style.display = "none";
     document.getElementById("didPanel").style.display = "none";
+    document.getElementById("autoGPanel").style.display = "none";
     document.getElementById("gaiaxPanel").style.display = "none";
     document.getElementById("userEmail").textContent = "";
 
@@ -200,7 +202,7 @@ function showLoginOptions() {
 // Global Function in index.js
 function showMainApp() {
     // 1. CRITICAL: Enable all main application tabs
-    const tabsToEnable = ["todoTab", "didTab", "gaiaxTab"];
+    const tabsToEnable = ["todoTab", "didTab", "autoGTab", "gaiaxTab"];
     tabsToEnable.forEach(id => {
         const tabEl = document.getElementById(id);
         if (tabEl) {
@@ -318,13 +320,13 @@ async function handlePostLogin(user) {
     showUserProfile(currentUser);
 
     // Enable tabs
-    ["todoTab", "didTab", "gaiaxTab"].forEach(id => {
+    ["todoTab", "didTab", "autoGTab", "gaiaxTab"].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.disabled = false;
     });
 
     // Activate the ToDo tab by default
-    ["loginTab", "todoTab", "didTab", "gaiaxTab"].forEach(id => {
+    ["loginTab", "todoTab", "didTab", "autoGTab","gaiaxTab"].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.remove("active");
     });
@@ -658,6 +660,7 @@ let GX_TEMPLATES = {
   TermsAndConditions: null,
 };
 
+
 async function fetchAndParseGaiaxShapes() {
   const SHAPES_URL =
     "https://registry.lab.gaia-x.eu/development/api/trusted-shape-registry/v1/shapes/jsonld/trustframework#";
@@ -672,6 +675,68 @@ async function fetchAndParseGaiaxShapes() {
 
     const shapes = await response.json();
     console.log("✅ GAIA-X SHACL shapes fetched successfully.");
+
+    // Attempt to find LegalPerson and TermsAndConditions nodes
+    const legalPersonShape = findShape(shapes, "gx:LegalPersonShape");
+    const termsShape = findShape(shapes, "gx:TermsAndConditionsShape");
+
+    // Generate minimal JSON-LD templates based on required properties
+    GX_TEMPLATES.LegalPerson = buildTemplate(legalPersonShape, "gx:LegalPerson");
+    GX_TEMPLATES.TermsAndConditions = buildTemplate(
+      termsShape,
+      "gx:TermsAndConditions"
+    );
+
+    console.log("✅ Extracted Gaia-X Templates:");
+    console.dir(GX_TEMPLATES, { depth: null });
+
+    return GX_TEMPLATES;
+  } catch (error) {
+    console.error("❌ Failed to fetch or parse GAIA-X shapes:", error);
+
+    // Fallback minimal shapes
+    GX_TEMPLATES.LegalPerson = {
+      "@context": ["https://www.w3.org/ns/did/v1", "https://w3id.org/gaia-x/development"],
+      "type": "gx:LegalPerson",
+      "gx:legalName": "",
+      "gx:registrationNumber": "",
+      "gx:headquartersAddress": {},
+      "gx:legalAddress": {},
+    };
+
+    GX_TEMPLATES.TermsAndConditions = {
+      "@context": ["https://www.w3.org/ns/did/v1", "https://w3id.org/gaia-x/development"],
+      "type": "gx:TermsAndConditions",
+      "gx:termsURL": "",
+      "gx:version": "",
+      "gx:hash": "",
+    };
+
+    return GX_TEMPLATES;
+  }
+}
+
+async function autoGrequest() {
+  const SHAPES_URL =
+    "https://registry.lab.gaia-x.eu/development/api/trusted-shape-registry/v1/shapes/jsonld/trustframework#";
+
+  console.log("[GAIA-X] Fetching SHACL shapes from:", SHAPES_URL);
+
+  try {
+    const response = await fetch(SHAPES_URL);
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const shapes = await response.json();
+    console.log("✅ GAIA-X SHACL shapes fetched successfully.");
+    // Show the fetched shapes in the debug panel
+    const debugBox = document.getElementById("ssiDebug");   
+    if (debugBox) {
+        debugBox.textContent += `\n[${new Date().toISOString()}] Fetched GAIA-X SHACL Shapes: ${JSON.stringify(shapes)}`;
+        debugBox.scrollTop = debugBox.scrollHeight;
+    }   
+    
 
     // Attempt to find LegalPerson and TermsAndConditions nodes
     const legalPersonShape = findShape(shapes, "gx:LegalPersonShape");
@@ -1568,9 +1633,11 @@ window.logout = async function() {
     document.getElementById("loginPanel").style.display = "block";
     document.getElementById("todoPanel").style.display = "none";
     document.getElementById("didPanel").style.display = "none";
+    document.getElementById("autoGPanel").style.display = "none";
 
     document.getElementById("todoTab").disabled = true;
     document.getElementById("didTab").disabled = true;
+    document.getElementById("autoGTab").disabled = true;
     document.getElementById("gaiaxTab").disabled = true;
 
     // 🧾 2. Tell backend to clear secure cookie
@@ -1605,13 +1672,16 @@ window.addEventListener("DOMContentLoaded", async () => {
     tabElements.loginTab = document.getElementById("loginTab");
     tabElements.todoTab = document.getElementById("todoTab");
     tabElements.didTab = document.getElementById("didTab");
+    tabElements.autoGTab = document.getElementById("autoGTab");
     tabElements.gaiaxTab = document.getElementById("gaiaxTab");
     
     panels.login = document.getElementById("loginPanel");
     panels.todo = document.getElementById("todoPanel");
     panels.did = document.getElementById("didPanel");
+    panels.autoG = document.getElementById("autoGPanel");
     panels.gaiax = document.getElementById("gaiaxPanel");
     
+
     // --- 2. Check if there is an existing session ---
     // The checkExistingSession function now calls the global showLoginOptions on fail.
     const hasSession = await checkExistingSession();
@@ -1629,6 +1699,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     const requestVcBtn = document.getElementById("requestVcBtn");
     const complianceBtn = document.getElementById("requestComplianceVcBtn"); // <--- NEW BUTTON
     const closeModalBtn = document.getElementById("closeModal");
+
 
     rowBtn?.addEventListener("click", addTask);
     myInput?.addEventListener("keypress", (e) => {
@@ -1678,6 +1749,16 @@ window.addEventListener("DOMContentLoaded", async () => {
             }
         }
     });
+    tabElements.autoGTab?.addEventListener("click", async () => {
+        if (!tabElements.autoGTab.disabled) {
+            activateTab("autoG");
+            autoGrequest().then(autoGresponse => {
+                // gaiaxAutoGresponse = autoGrequest().then(autoGresponse => {
+                document.getElementById("autoGxVc").textContent = JSON.stringify(autoGresponse, null, 2);
+            });
+        }
+    });
+
     tabElements.gaiaxTab?.addEventListener("click", () => {
         if (!tabElements.gaiaxTab.disabled) {
             // Fetch GAIA-X shapes early and store them globally
