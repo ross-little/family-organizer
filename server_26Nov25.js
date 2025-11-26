@@ -26,7 +26,7 @@ const sseEventStore = new Map();
 const sseClients = new Map();
 // ===== NEW Compliance VC Store =====
 // Maps vcId (URI/URL of the VC) -> Compliance VC JWT (string)
-const VcStore = new Map();
+const complianceVcStore = new Map();
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -48,12 +48,6 @@ const PORT = process.env.PORT || 3000;
 // const CERT_FILE_PATH = "/etc/secrets/family-organizer.pem";
 // const KEY_FILE_PATH = "/etc/secrets/family-organizer.key"; 
 
-// ------>>>> Define APP_BASE_URL based on environment
-const APP_BASE_URL = process.env.NODE_ENV === "development"
-    ? `http://localhost:${PORT}` // Use localhost for development
-    : "https://" + DOMAIN;  // Use domain for production
-console.warn(`===============>>>>>>>>>>>>>>>>>>>>>>App Base URL: ${APP_BASE_URL}`);
-
 // ===== CORS Configuration for Development and Production =====
 app.use(cors({
     origin: '*', // Allows all origins
@@ -61,7 +55,7 @@ app.use(cors({
     credentials: true,
 }));
 
-let DID = `did:web:${DOMAIN}`;  // ✅ consistent
+const DID = `did:web:${DOMAIN}`;
 const kid = `x509-jwk-1`;  // fragment only
 const VERIFICATION_METHOD_ID = `${DID}#x509-jwk-1`;  // ✅ consistent
 console.log(`DID: ${DID}`);
@@ -433,262 +427,25 @@ function isAuthenticated(req, res, next) {
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////// START OF UPDATES TO PROVIDE GAIA-X COMPLIANCE VC IN THE BACKEND //////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-// ====================================================================================
-// 1. CORE UTILITY FUNCTION: Encapsulates all VC Signing Logic
-// ===
-/**
- * Signs a Verifiable Credential payload using JWS/JWT mapping rules.
- * * @param {object} vcPayload - The VC payload (claims) to be signed.
- * @param {object} signingKey - The jose key object used for signing (e.g., an ES256 private key).
- * @param {string} DID - The Issuer's DID (e.g., did:web:...).
- * @param {string} VERIFICATION_METHOD_ID - The Key ID (kid) that corresponds to a verification method.
- * @param {object} jose - The jose library instance (e.g., from 'jose').
- * @returns {Promise<string>} The signed VC in VC-JWT format.
- */
-
-async function signVerifiableCredential(vcPayload, signingKey, DID, VERIFICATION_METHOD_ID, jose) {
-    // Re-check for critical signing components (although the route handles most of this)
-    if (!signingKey || !DID || !VERIFICATION_METHOD_ID) {
-        throw new Error("Internal signing configuration is incomplete.");
-    }
-    
-    // --- Logic extracted from the original route handler ---
-    
-    const now = Math.floor(Date.now() / 1000);
-
-    // issuer: prefer explicit issuer in payload, otherwise use your DID
-    const issuer = vcPayload.issuer || DID;
-
-    // subject: The original code determined the subject here for the (commented out) 'sub' claim.
-    // We'll keep the subject derivation even if 'sub' isn't explicitly set in claims.
-    const subject = vcPayload.credentialSubject.id || vcPayload.credentialSubject['@id'];
-    
-    // Build the JWT claim set using the VC data model top-level fields.
-    // Deep-clone incoming payload to avoid mutation.
-    const claims = JSON.parse(JSON.stringify(vcPayload));
-
-    // Protected header per VC-JWT spec (credential-claims-set mapping)
-    const protectedHeader = {
-        alg: "ES256",
-        typ: "vc+jwt",                  // required header media-type for VC-JWT credential claimset
-        cty: "vc",                      // recommended header media-type for nested VC in JWT
-        iss: issuer,                    // optional, can include in header
-        kid: VERIFICATION_METHOD_ID     // MUST exactly match didDoc verificationMethod id
-    };
-
-    // Sign the JWT with jose
-    const signed = await new jose.SignJWT(claims)
-        .setProtectedHeader(protectedHeader)
-        .sign(signingKey);
-
-    return signed;
-}
-
-// ====================================================================================
-// 2. CORE UTILITY FUNCTION: Encapsulates all VP Signing Logic
-// ====================================================================================
-
-/**
- * Signs a Verifiable Presentation payload using JWS/JWT mapping rules.
- * @param {object} vpPayload - The VP payload to be signed.
- * @param {object} signingKey - The jose key object used for signing (e.g., an ES256 private key).
- * @param {string} DID - The Issuer/Holder's DID (e.g., did:web:...).
- * @param {string} VERIFICATION_METHOD_ID - The Key ID (kid) that corresponds to a verification method.
- * @param {object} jose - The jose library instance (e.g., from 'jose').
- * @returns {Promise<string>} The signed VP in VP-JWT format.
- */
-async function signVerifiablePresentation(vpPayload, signingKey, DID, VERIFICATION_METHOD_ID, jose) {
-    // Re-check for critical signing components
-    if (!signingKey || !DID || !VERIFICATION_METHOD_ID) {
-        throw new Error("Internal signing configuration is incomplete.");
-    }
-    
-    // --- Logic extracted from the original route handler ---
-
-    // Protected header per VP-JWT spec
-    const protectedHeader = {
-        alg: "ES256",
-        typ: "vp+jwt",          // VP-JWT media type
-        cty: "vp",              // nested VP media type
-        iss: DID,               // issuer is your DID
-        kid: VERIFICATION_METHOD_ID
-    };
-
-    // Sign the VP exactly as received
-    const signedVp = await new jose.SignJWT(vpPayload)
-        .setProtectedHeader(protectedHeader)
-        .sign(signingKey);
-
-    return signedVp;
-}
-
-
-// ====================================================================================
-// CORE UTILITY FUNCTION:  VC Storage Logic
-// ====================================================================================
-
-/**
- * Stores a  Verifiable Credential JWT using its ID as the key.
- * @param {string} vcId - The ID of the VC (used as the key).
- * @param {string} VcJwt - The full JWS/JWT of the  VC.
- * @param {Map<string, string>} VcStore - The storage mechanism (Map or equivalent).
- * @throws {Error} If input validation fails.
- */
-function storeVc(vcId, VcJwt, VcStore) {
-    // 1. Input validation (Moved from Express route)
-    if (!vcId || typeof vcId !== 'string' || !VcJwt || typeof VcJwt !== 'string') {
-        throw new Error("Invalid or missing vcId or VcJwt.");
-    }
-
-    // 2. Store the JWT using the VC ID as the key
-    VcStore.set(vcId, VcJwt);
-
-    // 3. Log (Optional, but useful to keep in the core function)
-    console.log(`[VC STORE]  VC stored successfully for ID: ${vcId}`);
-    console.log(`[VC STORE] Total stored VCs: ${VcStore.size}`);
-}
-
-
-// ====================================================================================
-// CORE UTILITY FUNCTION:  GET Legal Registration VC from GAIA-X Notary
-// ====================================================================================
-// ===== GAIA-X VC Operations (Step 1: Request Legal Registration VC) =====
-
-/**
- * Stores a  Verifiable Credential JWT using its ID as the key.
- * @param {string} vatId - The VAT ID of the organization to be onboarded.
- * @throws {Error} If input validation fails.
- */
-async function requestGaiaxVc(vatId,vcId,subjectDid) {
-    const NOTARY_API_BASE = "https://registrationnumber.notary.lab.gaia-x.eu/development/registration-numbers/vat-id/";
- 
-
-    const rawVcDisplay = document.getElementById("rawVcDisplay");
-    const decodedVcDisplay = document.getElementById("decodedVcDisplay");
-    const vcResponseContainer = document.getElementById("vcResponseContainer");
-
-
-  console.log("VAT ID:", vatId, "Subject DID:", subjectDid);
-    issuerDID = subjectDid; // Store issuer DID globally for later use in VPs   
-
-
-
-    try {
-        if (!vatId || !subjectDid) {
-            throw new Error("VAT ID and Subject DID must be provided.");
-        }
-        
-        // 1. Construct the API URL
-        // Use the global APP_BASE_URL for the VC ID (which is URL based)
-        const vcId = `${APP_BASE_URL}/credentials/${uuidv4()}`;
-        
-        const apiUrl = new URL(`${NOTARY_API_BASE}${vatId}`);
-        apiUrl.searchParams.set('vcId', vcId);
-        apiUrl.searchParams.set('subjectId', subjectDid);
-
-        console.log(`Fetching VC from: ${apiUrl.toString()}`);
-
-        // 2. Perform the API Request with required header
-        const response = await fetch(apiUrl.toString(), {
-            method: 'GET',
-            headers: {
-                // This header is essential for the Notary to return the JWT VC text
-                'accept': 'application/vc+jwt' 
-            }
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`API returned status ${response.status}: ${errorText.substring(0, 100)}...`);
-        }
-
-        // The response body is the raw VC JWT text
-        const rawVc = await response.text();
-
-           const { vcId, complianceVcJwt } = req.body;
-
-        try {
-            // 2. Call the core utility function
-            // We pass the storage mechanism as an argument (Dependency Injection)
-            storeVc(vcId, rawVc, VcStore);
-
-        } catch (error) {
-            // 4. HTTP Error Concern: Handle validation errors from the utility function
-            console.warn(`[VC STORE] Failed to store VC: ${error.message}`);
-        }
-
-        gaiaxRegistrationVcJwt = rawVc; // Store the raw VC JWT globally
-        localStorage.setItem("gaiax_registration_vc_jwt", rawVc);
-
-        const decodedPayload = decodeJwt(rawVc); 
-                    // --- LOG RAW JWT TO DEBUG PANEL (as requested) ---
-        // Parse the decodedPayload to get the id of the VC for logging
-        registrationVcId = decodedPayload?.id || "unknown";
-        console.log(`✅ Received VC with ID: ${registrationVcId}`);
-        
-    
-        const credentialSubject = decodedPayload?.credentialSubject;
-
-        if (!credentialSubject) {
-            throw new Error("VC received, but missing 'credentialSubject' in payload.");
-        }
-
-        // 3. Store the VC Subject, mapping the GAIA-X field to the generic name expected by Step 2
-        legalRegistrationVcPayload = {
-            id: credentialSubject.id, 
-            // The GAIA-X payload uses "gx:vatID", we map it to "legalRegistrationId" for seamless Step 2 integration
-            legalRegistrationId: credentialSubject["gx:vatID"] || credentialSubject.vatID,
-            rawSubject: credentialSubject
-        };
-        globalRegId = credentialSubject.id; // Store globally for later use
-        console.log("Stored Legal Registration VC Subject:", legalRegistrationVcPayload);
-
-        // =========================================================================================================
-        // GAIA-X Step 2 PROCESSING
-        // Call prefill function and reveal Step 2 UI
-        prefillStep2Inputs(legalRegistrationVcPayload); 
-
-    } catch (error) {
-        // Error Notification
-        console.error("VC Request failed:", error);
-    } finally {
-        console.warn("GAIA-X Step 1 completed", rawVc);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////// END OF UPDATES TO PROVIDE GAIA-X  VC IN THE BACKEND //////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-// ====================================================================================
-// EXPRESS ROUTE HANDLER: Handles HTTP Request/Response Flow
-// ====================================================================================
-
-// ===== API: Store  VC =====
+// ===== API: Store Compliance VC =====
 app.post("/api/store-compliance-vc", isAuthenticated, (req, res) => {
-    // 1. HTTP Concern: Destructure the required payload from the request body
+    // 1. Destructure the required payload
     const { vcId, complianceVcJwt } = req.body;
 
-    try {
-        // 2. Call the core utility function
-        // We pass the storage mechanism as an argument (Dependency Injection)
-        storeVc(vcId, complianceVcJwt, VcStore);
-
-        // 3. HTTP Response Concern: Respond with success
-        res.status(200).json({ success: true, message: "Compliance VC stored successfully." });
-
-    } catch (error) {
-        // 4. HTTP Error Concern: Handle validation errors from the utility function
-        console.warn(`[VC STORE] Failed to store VC: ${error.message}`);
-        // Return 400 Bad Request for validation errors
-        return res.status(400).send(error.message);
+    // 2. Input validation
+    if (!vcId || typeof vcId !== 'string' || !complianceVcJwt || typeof complianceVcJwt !== 'string') {
+        console.warn("[VC STORE] Invalid input received.");
+        return res.status(400).send("Invalid or missing vcId or complianceVcJwt.");
     }
+
+    // 3. Store the JWT using the VC ID as the key
+    complianceVcStore.set(vcId, complianceVcJwt);
+
+    // 4. Log and respond
+    console.log(`[VC STORE] Compliance VC stored successfully for ID: ${vcId}`);
+    console.log(`[VC STORE] Total stored VCs: ${complianceVcStore.size}`);
+
+    res.status(200).json({ success: true, message: "Compliance VC stored successfully." });
 });
 
 // ===== API: ToDo List (EXISTING) =====
@@ -801,53 +558,84 @@ app.delete("/api/todos/:id", isAuthenticated, (req, res) => {
 // ===== End ToDo List API =====
 
 // ===== API: Sign VC (JWS/JWT) (EXISTING) =====
-
 app.post("/api/sign-vc", async (req, res) => {
-    // 1. HTTP Lifecycle Concern: Wait for signingKey readiness
-    for (let i = 0; i < 20 && !signingKey; ++i) await new Promise(r => setTimeout(r, 90));
-    if (!signingKey) {
-        console.error("Signing key not ready in /api/sign-vc");
-        return res.status(500).send("Signing key not ready");
-    }
+  // short wait loop for signingKey if it's still initializing
+  for (let i = 0; i < 20 && !signingKey; ++i) await new Promise(r => setTimeout(r, 90));
+  if (!signingKey) {
+    console.error("Signing key not ready in /api/sign-vc");
+    return res.status(500).send("Signing key not ready");
+  }
 
-    const vcPayload = req.body?.vcPayload;
+  const vcPayload = req.body?.vcPayload;
+  // Alert if vcPayload is missing for debugging
+  if (!vcPayload.credentialSubject || (!vcPayload.credentialSubject.id && !vcPayload.credentialSubject['@id'])) {
+    return res.status(400).send("Missing credentialSubject.id or credentialSubject.@id");
+  } 
 
-    // 2. HTTP Validation Concern: Check for payload and required subject ID
-    if (!vcPayload) {
-        console.warn("No vcPayload in request body:", req.body);
-        return res.status(400).send("Missing vcPayload");
-    }
+  if (!vcPayload) {
+    // DEBUG: Log the received body for troubleshooting
+    console.warn("No vcPayload in request body:", req.body);
     
-    if (!vcPayload.credentialSubject || (!vcPayload.credentialSubject.id && !vcPayload.credentialSubject['@id'])) {
-        return res.status(400).send("Missing credentialSubject.id or credentialSubject.@id");
-    } 
+    return res.status(400).send("Missing vcPayload");
+  }
 
-    try {
-        // 3. Call the core utility function
-        const signed = await signVerifiableCredential(
-            vcPayload,
-            signingKey,
-            DID,
-            VERIFICATION_METHOD_ID,
-            jose
-        );
+  try {
+    const now = Math.floor(Date.now() / 1000);
 
-        // 4. HTTP Response Concern: Send the final signed VC
-        res.set("Content-Type", "application/vc+jwt").status(200).send(signed);
+    // issuer: prefer explicit issuer in payload, otherwise use your DID
+    const issuer = vcPayload.issuer || DID; // DID global is did:web:...
 
-    } catch (err) {
-        // 5. HTTP Error Concern: Handle and respond to errors
-        console.error("Error signing VC:", err);
-        res.status(500).send(`Signing error: ${err?.message || err}`);
-    }
+    // const subject = vcPayload.credentialSubject.id;
+    const subject = vcPayload.credentialSubject.id || vcPayload.credentialSubject['@id'];
+
+    // Build the JWT claim set using the VC data model top-level fields.
+    // We deep-clone incoming payload to avoid mutation.
+    const claims = JSON.parse(JSON.stringify(vcPayload));
+
+    // Remove embedded issuer (we'll put it in standard 'iss' claim to follow VC-JWT mapping)
+    // delete claims.issuer;
+
+    // Ensure required JWT registered claims are present/normalized:
+    // if (!claims.id && vcPayload.id) claims.id = vcPayload.id;   // keep VC id if provided
+    // set standard JWT claims (do not overwrite if caller provided)
+    // if (!claims.iss) claims.iss = issuer;
+    // if (!claims.sub) claims.sub = subject;
+    // if (!claims.iat) claims.iat = now;
+    // if (!claims.nbf) claims.nbf = now;
+    // if (!claims.exp) claims.exp = now + (365 * 24 * 60 * 60); // default 1 year
+    // if (!claims.jti) claims.jti = `urn:uuid:${crypto.randomUUID()}`;
+
+    // Protected header per VC-JWT spec (credential-claims-set mapping)
+    const protectedHeader = {
+      alg: "ES256",
+      typ: "vc+jwt",                  // required header media-type for VC-JWT credential claimset
+      cty: "vc",                      // recommended header media-type for nested VC in JWT
+      iss: issuer,                    // optional, can include in header
+      kid: VERIFICATION_METHOD_ID     // MUST exactly match didDoc verificationMethod id
+    };
+
+    // Sign the JWT with jose
+    const signed = await new jose.SignJWT(claims)
+      .setProtectedHeader(protectedHeader)
+      .sign(signingKey);
+
+    // Respond with media-type application/vc+jwt (per W3C VC-JWT IANA registration)
+    res.set("Content-Type", "application/vc+jwt").status(200).send(signed);
+
+  } catch (err) {
+    console.error("Error signing VC:", err);
+    res.status(500).send(`Signing error: ${err?.message || err}`);
+  }
 });
+
 // ===== End API: Sign VC =====
 
+// ===== API: Sign VP (JWS/JWT) (EXISTING) =====
+// ===== API: Sign VP (JWS/JWT) =====
 // ===== API: Sign VP (JWS/JWT) =====
 app.post("/api/sign-vp", async (req, res) => {
     try {
-        // 1. HTTP Lifecycle Concern: Wait for signingKey readiness
-        // The original code uses a loop for key initialization, which is a good practice here.
+        // wait for signingKey if still initializing
         for (let i = 0; i < 20 && !signingKey; ++i) await new Promise(r => setTimeout(r, 90));
         if (!signingKey) {
             console.error("Signing key not ready in /api/sign-vp");
@@ -855,31 +643,35 @@ app.post("/api/sign-vp", async (req, res) => {
         }
 
         const vpPayload = req.body?.vpPayload;
-
-        // 2. HTTP Validation Concern: Check for payload
         if (!vpPayload) {
             return res.status(400).send("Missing vpPayload");
         }
 
-        // 3. Call the core utility function
-        const signedVp = await signVerifiablePresentation(
-            vpPayload,
-            signingKey,
-            DID,
-            VERIFICATION_METHOD_ID,
-            jose
-        );
+        // Protected header
+        const protectedHeader = {
+            alg: "ES256",
+            typ: "vp+jwt",        // VP-JWT media type
+            cty: "vp",            // nested VP media type
+            iss: DID,            // issuer is your DID
+            kid: VERIFICATION_METHOD_ID
+        };
 
-        // 4. HTTP Response Concern: Send the final signed VP
-        // Return signed VP-JWT with the correct media type
+        // Sign the VP exactly as received
+        const signedVp = await new jose.SignJWT(vpPayload)
+            .setProtectedHeader(protectedHeader)
+            .sign(signingKey);
+
+        // Return signed VP-JWT
         res.set("Content-Type", "application/vp+jwt").status(200).send(signedVp);
 
     } catch (err) {
-        // 5. HTTP Error Concern: Handle and respond to errors
         console.error("[SIGN VP ERROR]", err);
         res.status(500).send(`VP signing error: ${err?.message || err}`);
     }
 });
+
+
+
 // ===== End API: Sign VP =====
 
 // ===== DID Document Endpoint (EXISTING) =====
@@ -1113,19 +905,14 @@ app.get("/credentials/:uuid", (req, res) => {
     try {
         // 1. Construct the full VC ID URI as used for the map key.
         // It relies on the global DOMAIN constant, assuming the APP_BASE_URL is https://${DOMAIN}
-        
-        // ************* const fullVcId = `https://${DOMAIN}/credentials/${uuid}`;
-        
-        const fullVcId = `${APP_BASE_URL}/credentials/${uuid}`;
-        // Add console log for debugging
-        console.log(`[VC RESOLUTION] ------->>> Resolving VC for ID: ${fullVcId}`);
+        const fullVcId = `https://${DOMAIN}/credentials/${uuid}`;
 
         // 2. Retrieve the Compliance VC JWT from the store
-        const complianceVcJwt = VcStore.get(fullVcId);
+        const complianceVcJwt = complianceVcStore.get(fullVcId);
 
         if (!complianceVcJwt) {
             console.warn(`[VC RESOLUTION] Compliance VC not found for ID: ${fullVcId}`);
-            return res.status(404).send("Verifiable Credential not found at: " + fullVcId);
+            return res.status(404).send("Verifiable Credential not found.");
         }
 
         // 3. Respond with the VC JWT and the correct content type (application/vc+jwt)
@@ -1187,18 +974,13 @@ app.get("/sse-server/stream-events/:state", (req, res) => {
 });
 
 
-// ===== API: Request GAIA-X Compliance Label VC) =====
+// ===== API: Request GAIA-X Compliance Lable VC) =====
 /**
  * 
  * 
  */
 app.post("/api/gaiax", async (req, res) => {
   const complianceReq = req.body?.complianceReq;
-
-  
-
-
-
 
   if (!complianceReq) {
     return res.status(400).json({ error: "Missing Verifiable Credentials in request body" });
