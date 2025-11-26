@@ -610,7 +610,7 @@ async function requestGaiaxVc(vatId,vcId,subjectDid) {
         // The response body is the raw VC JWT text
         const rawVc = await response.text();
 
-           const { vcId, complianceVcJwt } = req.body;
+        console.log("✅ Received Registration Number VC JWT:", rawVc);
 
         try {
             // 2. Call the core utility function
