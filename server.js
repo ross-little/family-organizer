@@ -437,6 +437,12 @@ function isAuthenticated(req, res, next) {
 ///////////////////////////// START OF UPDATES TO PROVIDE GAIA-X COMPLIANCE VC IN THE BACKEND //////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+function uuidv4() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
 
 // ====================================================================================
 // 1. CORE UTILITY FUNCTION: Encapsulates all VC Signing Logic
@@ -555,29 +561,77 @@ function storeVc(vcId, VcJwt, VcStore) {
 
 
 // ====================================================================================
-// CORE UTILITY FUNCTION:  GET Legal Registration VC from GAIA-X Notary
+// CORE UTILITY FUNCTION:  GET GAIA-X Compliance label VC
 // ====================================================================================
-// ===== GAIA-X VC Operations (Step 1: Request Legal Registration VC) =====
 
+function decodeJwt(jwt) {
+    const base64Url = jwt.split(".")[1] || "";
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    try {
+        const jsonPayload = decodeURIComponent(
+            atob(base64)
+                .split("")
+                .map(c => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+                .join("")
+        );
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        console.error("Failed to decode JWT:", e);
+        return {};
+    }
+}
+
+async function requestGaiaxVc(vatId,subjectDid, hqCountryCode) {
+    let decodedPayload = null;
+    let credentialSubject = null;
+
+
+    const registrationIdVc = await requestGaiaxRegistrationNumberVc(vatId,subjectDid);
+    // Log the raw VC JWT received
+    console.log("Raw Registration Number VC JWT:", registrationIdVc);
+
+    if (!registrationIdVc) {
+        throw new Error("Failed to obtain Legal Registration Number VC from GAIA-X Notary.");
+    }
+    // Decode the JWT to extract the credentialSubject
+    decodedPayload = decodeJwt(registrationIdVc); 
+    const registrationVcId = decodedPayload?.id || "unknown";
+    console.log(`✅ Received VC with ID: ${registrationVcId}`);
+    console.warn("GAIA-X Decoded Registration Number VC", decodedPayload);
+    
+    credentialSubject = decodedPayload?.credentialSubject;
+    console.warn("GAIA-X Decoded Registration Number VC", decodedPayload);
+    
+    // Log credentialSubject for debugging
+    console.log("Decoded VC Payload:", decodedPayload);
+    if (!credentialSubject) {
+        throw new Error("VC received, but missing 'credentialSubject' in payload.");
+    }
+    const legalAddressCountryCode = credentialSubject["gx:countryCode"] || "";   
+    // Log extracted values
+    console.warn(`Extracted Legal Address Country Code: ${legalAddressCountryCode}`);
+
+    // $$$$$$$ PLACENOTE: To be updated lkater to return the Compliance Label VC
+    return registrationIdVc;
+}
+
+// ====================================================================================
+// GAIA-X Step 1:  GET Legal Registration VC from GAIA-X Notary
+// ====================================================================================
 /**
  * Stores a  Verifiable Credential JWT using its ID as the key.
  * @param {string} vatId - The VAT ID of the organization to be onboarded.
+ * @param {string} subjectDid - The DID of the subject (participant organization).
  * @throws {Error} If input validation fails.
  */
-async function requestGaiaxVc(vatId,vcId,subjectDid) {
+async function requestGaiaxRegistrationNumberVc(vatId,subjectDid) {
+
+
     const NOTARY_API_BASE = "https://registrationnumber.notary.lab.gaia-x.eu/development/registration-numbers/vat-id/";
- 
-
-    const rawVcDisplay = document.getElementById("rawVcDisplay");
-    const decodedVcDisplay = document.getElementById("decodedVcDisplay");
-    const vcResponseContainer = document.getElementById("vcResponseContainer");
 
 
-  console.log("VAT ID:", vatId, "Subject DID:", subjectDid);
-    issuerDID = subjectDid; // Store issuer DID globally for later use in VPs   
-
-
-
+    console.log("VAT ID:", vatId, "Subject DID:", subjectDid);
+   
     try {
         if (!vatId || !subjectDid) {
             throw new Error("VAT ID and Subject DID must be provided.");
@@ -585,8 +639,9 @@ async function requestGaiaxVc(vatId,vcId,subjectDid) {
         
         // 1. Construct the API URL
         // Use the global APP_BASE_URL for the VC ID (which is URL based)
-        const vcId = `${APP_BASE_URL}/credentials/${uuidv4()}`;
-        
+        // const vcId = `${APP_BASE_URL}/credentials/${uuidv4()}`;
+        const vcId = `${APP_BASE_URL}/credentials/${crypto.randomUUID()}`;
+
         const apiUrl = new URL(`${NOTARY_API_BASE}${vatId}`);
         apiUrl.searchParams.set('vcId', vcId);
         apiUrl.searchParams.set('subjectId', subjectDid);
@@ -613,51 +668,21 @@ async function requestGaiaxVc(vatId,vcId,subjectDid) {
         console.log("✅ Received Registration Number VC JWT:", rawVc);
 
         try {
-            // 2. Call the core utility function
-            // We pass the storage mechanism as an argument (Dependency Injection)
+            // 2. Store the VC using the core utility function
             storeVc(vcId, rawVc, VcStore);
-
+            // 3. Log success
+            console.log(`[VC STORE] Registration Number VC stored successfully for ID: ${vcId}`);
+            return rawVc;
         } catch (error) {
             // 4. HTTP Error Concern: Handle validation errors from the utility function
             console.warn(`[VC STORE] Failed to store VC: ${error.message}`);
         }
 
-        gaiaxRegistrationVcJwt = rawVc; // Store the raw VC JWT globally
-        localStorage.setItem("gaiax_registration_vc_jwt", rawVc);
-
-        const decodedPayload = decodeJwt(rawVc); 
-                    // --- LOG RAW JWT TO DEBUG PANEL (as requested) ---
-        // Parse the decodedPayload to get the id of the VC for logging
-        registrationVcId = decodedPayload?.id || "unknown";
-        console.log(`✅ Received VC with ID: ${registrationVcId}`);
-        
-    
-        const credentialSubject = decodedPayload?.credentialSubject;
-
-        if (!credentialSubject) {
-            throw new Error("VC received, but missing 'credentialSubject' in payload.");
-        }
-
-        // 3. Store the VC Subject, mapping the GAIA-X field to the generic name expected by Step 2
-        legalRegistrationVcPayload = {
-            id: credentialSubject.id, 
-            // The GAIA-X payload uses "gx:vatID", we map it to "legalRegistrationId" for seamless Step 2 integration
-            legalRegistrationId: credentialSubject["gx:vatID"] || credentialSubject.vatID,
-            rawSubject: credentialSubject
-        };
-        globalRegId = credentialSubject.id; // Store globally for later use
-        console.log("Stored Legal Registration VC Subject:", legalRegistrationVcPayload);
-
-        // =========================================================================================================
-        // GAIA-X Step 2 PROCESSING
-        // Call prefill function and reveal Step 2 UI
-        prefillStep2Inputs(legalRegistrationVcPayload); 
-
     } catch (error) {
         // Error Notification
         console.error("VC Request failed:", error);
     } finally {
-        console.warn("GAIA-X Step 1 completed", rawVc);
+        console.warn("GAIA-X Step 1 completed");
     }
 }
 
@@ -1188,23 +1213,50 @@ app.get("/sse-server/stream-events/:state", (req, res) => {
 
 
 // ===== API: Request GAIA-X Compliance Label VC) =====
-/**
- * 
- * 
- */
+// server.js
+
+// ===== API: Request GAIA-X Compliance Label VC (CLEANED) =====
 app.post("/api/gaiax", async (req, res) => {
-  const complianceReq = req.body?.complianceReq;
+    // 1. Input Extraction
+    const vatId = req.body?.vatId;
+    const subjectDid = req.body?.subjectDid;
+    const hqCountryCode = req.body?.hqCountryCode;
 
-  
+    // 2. Input Validation
+    if (!vatId || !subjectDid || !hqCountryCode) {
+        return res.status(400).json({ 
+            error: "Missing required parameters: vatId, subjectDid, or hqCountryCode." 
+        });
+    }
 
+    try {
+        // 3. Wait for the asynchronous function to complete
+        // Execution will pause here until requestGaiaxVc returns or throws an error.
+        const gaiaxRegNumberVC = await requestGaiaxVc(
+            vatId,
+            subjectDid, 
+            hqCountryCode
+        );
 
+        console.warn("GAIA-X Compliance VC obtained:", gaiaxRegNumberVC);
+        
+        // 4. Success Response
+        // This is only executed if the await call succeeds.
+        return res.status(200).json({  
+            gaiaxRegNumberVC // PLACEHODER: to be replaced with actual Compliance Label VC when implemented ****************************
+        });
 
-
-  if (!complianceReq) {
-    return res.status(400).json({ error: "Missing Verifiable Credentials in request body" });
-  }
-
+    } catch (error) {
+        // 5. Error Response
+        // This is only executed if the await call fails.
+        console.error("Error in GAIA-X VC request:", error);
+        // Ensure you return here to stop execution
+        return res.status(500).json({ error: "Failed to obtain GAIA-X Compliance VC", detail: error.message });
+    }
+    
+    // Note: No code should be placed here, as all responses are handled inside try/catch.
 });
+
 
 
 

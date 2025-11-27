@@ -774,6 +774,11 @@ async function autoGrequest() {
       "gx:hash": "",
     };
 
+/**
+ * Now call the automatic GAIA-X onboarding API autG
+ * 
+ */
+
     return GX_TEMPLATES;
   }
 }
@@ -1612,7 +1617,34 @@ function enableGaiaxStep3() {
     }
 }
 
+async function autoG(vatId, subjectDid, hqCountryCode) {
+    try {
+        logGSI("Starting Auto-G process...");
+        // Correct structure based on your server-side logic:
+        const gaiaxCompliancelabelVC = await fetch("/api/gaiax", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                vatId: vatId,
+                subjectDid: subjectDid,
+                hqCountryCode: hqCountryCode
+            })
+        });
 
+        if (!gaiaxCompliancelabelVC.ok) {
+            throw new Error(`Auto-G request failed with status ${gaiaxCompliancelabelVC.status}`);
+        }
+        const gaiaxComplianceVC = await gaiaxCompliancelabelVC.json();
+        logGSI(`Auto-G process completed successfully. Received data: ${JSON.stringify(gaiaxComplianceVC)}`);
+        // return data;
+        // Console warning: returning the response object instead of JSON data
+        console.warn("Returning the response object instead of JSON data:", gaiaxCompliancelabelVC);
+        return gaiaxComplianceVC;
+
+    } catch (error) {
+        logGSI(`Auto-G process failed: ${error.message}`);
+    }
+}
 
 // ===== Tem Debug =====
 function logGSI(msg) {
@@ -1750,12 +1782,27 @@ window.addEventListener("DOMContentLoaded", async () => {
         }
     });
     tabElements.autoGTab?.addEventListener("click", async () => {
+        // Set test values for Auto-G
+        const vatId = "BE0762747721";
+        const DID = "did:web:family-organizer.onrender.com";
+        const hqCountryCode = "BE";
+
         if (!tabElements.autoGTab.disabled) {
             activateTab("autoG");
-            autoGrequest().then(autoGresponse => {
-                // gaiaxAutoGresponse = autoGrequest().then(autoGresponse => {
-                document.getElementById("autoGxVc").textContent = JSON.stringify(autoGresponse, null, 2);
+            autoG(vatId,DID,hqCountryCode).then(gaiaxComplianceVC => {
+                console.warn("******************* Auto-G request 1 completed.", gaiaxComplianceVC);
+                document.getElementById("autoGxVc").textContent = JSON.stringify(gaiaxComplianceVC, null, 2);   
+                //output the response of autoG  to the console for debugging
+                console.log("Auto-G Compliance VC Response:", gaiaxComplianceVC); 
             });
+
+            autoGrequest().then(gaiaxShapes => {
+                document.getElementById("autoGxShapes").textContent = JSON.stringify(gaiaxShapes, null, 2);   
+                //output the response of autoGrequest to the console for debugging
+                console.log("Auto-G Shapes Response:", gaiaxShapes);   
+                
+            });
+            
         }
     });
 
