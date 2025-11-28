@@ -62,8 +62,6 @@ app.use(cors({
 }));
 
 let DID = `did:web:${DOMAIN}`;  // ✅ consistent
-let tcHashHex = ""; // Global variable to store T&C hash
-
 const kid = `x509-jwk-1`;  // fragment only
 const VERIFICATION_METHOD_ID = `${DID}#x509-jwk-1`;  // ✅ consistent
 console.log(`DID: ${DID}`);
@@ -104,35 +102,6 @@ app.use(
 let signingKey;
 
 
-
-/**
- * Converts a Date object to an RFC3339 string (ISO 8601 with local offset).
- * This is often required for VC/DID timestamps (xsd:dateTime).
- * Example: 2024-01-01T10:30:00+02:00
- * * @param {Date} date - The Date object to format.
- * @returns {string} The formatted timestamp string.
- */
-function toRfc3339WithLocalOffset(date) {
-    const pad = (n) => (n < 10 ? '0' : '') + n;
-    
-    // Get date and time parts
-    const year = date.getFullYear();
-    const month = pad(date.getMonth() + 1);
-    const day = pad(date.getDate());
-    const hours = pad(date.getHours());
-    const minutes = pad(date.getMinutes());
-    const seconds = pad(date.getSeconds());
-
-    // Get time zone offset
-    const offset = date.getTimezoneOffset(); // in minutes
-    const absOffset = Math.abs(offset);
-    const offsetSign = offset > 0 ? '-' : '+';
-    const offsetHours = pad(Math.floor(absOffset / 60));
-    const offsetMinutes = pad(absOffset % 60);
-
-    // Combine into RFC3339 format
-    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetSign}${offsetHours}:${offsetMinutes}`;
-}
 
 
 function loadSigningKey() {
@@ -464,52 +433,10 @@ function isAuthenticated(req, res, next) {
     }
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////// START OF UPDATES TO PROVIDE GAIA-X COMPLIANCE VC IN THE BACKEND //////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// ==========================================================
-// ===== New Core Function: Sign VC Business Logic ======
-// ==========================================================
-/**
- * Core function to sign a Verifiable Credential payload.
- * Separated from the HTTP handler for local reusability.
- * * @param {object} vcPayload - The VC payload object (CredentialSubject MUST be present).
- * @returns {Promise<string>} The signed VC as a JWT string.
- * @throws {Error} If the signing key is not ready or the payload is invalid.
- */
-export async function signVcCore(vcPayload) {
-    // 1. Wait for signingKey readiness (moved here for encapsulation)
-    for (let i = 0; i < 20 && !signingKey; ++i) await new Promise(r => setTimeout(r, 90));
-    if (!signingKey) {
-        const errorMsg = "Signing key not ready in signVcCore";
-        console.error(errorMsg);
-        throw new Error(errorMsg);
-    }
-
-    // 2. Validation Concern: Check for payload and required subject ID
-    if (!vcPayload) {
-        throw new Error("Missing vcPayload in core function call.");
-    }
-    
-    // Check for credentialSubject.id or credentialSubject.@id
-    if (!vcPayload.credentialSubject || (!vcPayload.credentialSubject.id && !vcPayload.credentialSubject['@id'])) {
-        throw new Error("VC payload missing credentialSubject.id or credentialSubject.@id.");
-    } 
-
-    // 3. Call the core utility function (Assuming signVerifiableCredential is defined elsewhere)
-    const signed = await signVerifiableCredential(
-        vcPayload,
-        signingKey,
-        DID,
-        VERIFICATION_METHOD_ID,
-        jose
-    );
-
-    return signed;
-}
 
 // ====================================================================================
 // 1. CORE UTILITY FUNCTION: Encapsulates all VC Signing Logic
@@ -524,9 +451,6 @@ export async function signVcCore(vcPayload) {
  * @returns {Promise<string>} The signed VC in VC-JWT format.
  */
 
-// NOT USED DIRECTLY ANYMORE - MOVED TO signVcCore
-// NOT USED DIRECTLY ANYMORE - MOVED TO signVcCore
-// NOT USED DIRECTLY ANYMORE - MOVED TO signVcCore
 async function signVerifiableCredential(vcPayload, signingKey, DID, VERIFICATION_METHOD_ID, jose) {
     // Re-check for critical signing components (although the route handles most of this)
     if (!signingKey || !DID || !VERIFICATION_METHOD_ID) {
@@ -651,12 +575,9 @@ function decodeJwt(jwt) {
     }
 }
 
-
-
-
 // ===== GAIA-X VC Operations (Step 2a: Self-Issue T&C VC) =====
 async function selfIssueTermsAndConditionsVc(participantDid) {
-    let hashHex = "";
+    
     const now = new Date();
     const expiryDate = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 90); // +90 days
     const validFrom = toRfc3339WithLocalOffset(now);
@@ -682,7 +603,8 @@ async function selfIssueTermsAndConditionsVc(participantDid) {
 
         // const vcId = `${APP_BASE_URL}/credentials/${crypto.randomUUID()}`;
        const vcId = `${APP_BASE_URL}/credentials/terms-and-conditions`;
-
+        
+        tCVcId = vcId; // Save for later use in Legal Participant VC;
         console.log("[GAIA-X] T&C VC ID:", vcId);
 
         // Create VC payload
@@ -706,12 +628,14 @@ async function selfIssueTermsAndConditionsVc(participantDid) {
         console.warn("Here is the debug T&C VC Payload:\n" + JSON.stringify(vcPayload, null, 2));
 
         // Sign VC
-        const signedVc = await signVcCore(vcPayload);
-        console.log("✅ Self-issued T&C VC JWT:", signedVc);
-        // Store VC
-        storeVc(vcId, signedVc, VcStore);
-
-        return signedVc;
+        const response = await fetch("/api/sign-vc", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ vcPayload })
+        });
+        const rawVc = await response.text();
+        // Save globally
+        return rawVc;
 
     } catch (error) {
         console.warn("T&C VC self-issue failed:", error);
@@ -744,22 +668,20 @@ async function requestGaiaxVc(vatId,subjectDid, hqCountryCode) {
     // Log credentialSubject for debugging
     console.log("Decoded VC Payload:", decodedPayload);
     if (!credentialSubject) {
-        console.warn("VC received, but missing 'credentialSubject' in payload.");
         throw new Error("VC received, but missing 'credentialSubject' in payload.");
     }
     const legalAddressCountryCode = credentialSubject["gx:countryCode"] || "";   
     // Log extracted values
     console.warn(`Extracted Legal Address Country Code: ${legalAddressCountryCode}`);
 
-    const termsAndConditionsVc = await selfIssueTermsAndConditionsVc(subjectDid);
+    const termsAndConditionsVc = await requestGaiaxTermsAndConditionsVc(subjectDid);
     if (!termsAndConditionsVc) {
-        console.warn("Failed to obtain Terms & Conditions VC.");
         throw new Error("Failed to obtain Terms & Conditions VC.");
     }
 
     // Log the raw T&C VC JWT received
     console.log("--------------------->>>>> Raw Terms & Conditions VC JWT:", termsAndConditionsVc);    
-    console.warn("--------------------->>>>> Raw Terms & Conditions VC JWT:", termsAndConditionsVc); 
+
 
     // $$$$$$$ PLACENOTE: To be updated lkater to return the Compliance Label VC
     return registrationIdVc;
@@ -836,8 +758,6 @@ async function requestGaiaxRegistrationNumberVc(vatId,subjectDid) {
         console.warn("GAIA-X Step 1 completed");
     }
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////// END OF UPDATES TO PROVIDE GAIA-X  VC IN THE BACKEND //////////////////////
@@ -978,41 +898,48 @@ app.delete("/api/todos/:id", isAuthenticated, (req, res) => {
 
 // ===== End ToDo List API =====
 
-// ========================================================
-// ===== API: Sign VC (Express Route Handler) ======
-// ========================================================
-/**
- * Express endpoint to receive a VC payload and return a signed JWT.
- * It handles the HTTP request/response lifecycle.
- */
+// ===== API: Sign VC (JWS/JWT) (EXISTING) =====
+
 app.post("/api/sign-vc", async (req, res) => {
-    // 1. HTTP Extraction
+    // 1. HTTP Lifecycle Concern: Wait for signingKey readiness
+    for (let i = 0; i < 20 && !signingKey; ++i) await new Promise(r => setTimeout(r, 90));
+    if (!signingKey) {
+        console.error("Signing key not ready in /api/sign-vc");
+        return res.status(500).send("Signing key not ready");
+    }
+
     const vcPayload = req.body?.vcPayload;
 
-    try {
-        // 2. Call the reusable core function
-        const signed = await signVcCore(vcPayload);
+    // 2. HTTP Validation Concern: Check for payload and required subject ID
+    if (!vcPayload) {
+        console.warn("No vcPayload in request body:", req.body);
+        return res.status(400).send("Missing vcPayload");
+    }
+    
+    if (!vcPayload.credentialSubject || (!vcPayload.credentialSubject.id && !vcPayload.credentialSubject['@id'])) {
+        return res.status(400).send("Missing credentialSubject.id or credentialSubject.@id");
+    } 
 
-        // 3. HTTP Response Concern: Send the final signed VC
+    try {
+        // 3. Call the core utility function
+        const signed = await signVerifiableCredential(
+            vcPayload,
+            signingKey,
+            DID,
+            VERIFICATION_METHOD_ID,
+            jose
+        );
+
+        // 4. HTTP Response Concern: Send the final signed VC
         res.set("Content-Type", "application/vc+jwt").status(200).send(signed);
 
     } catch (err) {
-        // 4. HTTP Error Concern: Handle and respond to errors based on type
-        const message = err?.message || err;
-        
-        // Use 400 for validation errors thrown by signVcCore
-        if (message.includes("Missing") || message.includes("missing")) {
-            console.warn(`Validation Error signing VC: ${message}`);
-            return res.status(400).send(`Validation error: ${message}`);
-        }
-        
-        // Use 500 for internal errors like key not ready
-        console.error("Internal Error signing VC:", err);
-        return res.status(500).send(`Internal signing error: ${message}`);
+        // 5. HTTP Error Concern: Handle and respond to errors
+        console.error("Error signing VC:", err);
+        res.status(500).send(`Signing error: ${err?.message || err}`);
     }
 });
 // ===== End API: Sign VC =====
-
 
 // ===== API: Sign VP (JWS/JWT) =====
 app.post("/api/sign-vp", async (req, res) => {
