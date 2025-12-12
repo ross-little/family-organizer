@@ -1,25 +1,20 @@
 // ===== Imports and Setup =====
-import express from "express";
-import path from "path";
-import bodyParser from "body-parser";
-import cors from "cors";
-import fs from "fs";
-import { X509Certificate } from "crypto"; 
-import * as jose from 'jose';
-// import pemJwk from 'pem-jwk'; // Import the default export
-import crypto from "crypto";            // for crypto.randomUUID()
-import { createPublicKey } from "crypto"; // for public key operations
+const express = require('express');
+const path = require('path');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const fs = require('fs');
+const { X509Certificate } = require('crypto');
+const jose = require('jose');
+const crypto = require('crypto');
+const cookieParser = require('cookie-parser');
+const session = require('express-session');
+const swaggerJsDoc = require('swagger-jsdoc');
+const swaggerUi = require('swagger-ui-express');
 
-// cookie parser
-import cookieParser from "cookie-parser";
-// session management
-import session from "express-session";
-// Swagger imports
-import swaggerJsDoc from 'swagger-jsdoc';
-import swaggerUi from 'swagger-ui-express';
-// ===== Express App Initialization (EXISTING) =====
-// ... (rest of express setup code)
 const app = express();
+
+// Your existing code here...
 // ===== Configuration =====
 const DOMAIN = "family-organizer.onrender.com"; 
 const swaggerOptions = {
@@ -36,7 +31,7 @@ const swaggerOptions = {
             },
         ],
     },
-    apis: ["server.js"], // Path to the API docs
+    apis: ["server.cjs"], // Path to the API docs
 };
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
@@ -1802,6 +1797,63 @@ app.get("/sse-server/stream-events/:state", (req, res) => {
 // server.js
 
 // ===== API: Request GAIA-X Compliance Label VC (CLEANED) =====
+/**
+ * @swagger
+ * /api/gaiax:
+ *   post:
+ *     summary: Request GAIA-X Compliance Label VC
+ *     description: This endpoint requests a GAIA-X Compliance Label Verifiable Credential (VC) based on the provided parameters.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               vatId:
+ *                 type: string
+ *                 example: "DE123456789"
+ *                 description: The VAT ID of the entity requesting the compliance label.
+ *               subjectDid:
+ *                 type: string
+ *                 example: "did:example:123456789"
+ *                 description: The decentralized identifier (DID) of the subject.
+ *               hqCountryCode:
+ *                 type: string
+ *                 example: "DE"
+ *                 description: The country code of the headquarters (e.g., 'DE' for Germany).
+ *     responses:
+ *       200:
+ *         description: Successful response containing GAIA-X Compliance VC.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 gaiaxRegNumberVC:
+ *                   type: string
+ *                   description: The GAIA-X Compliance VC received.
+ *       400:
+ *         description: Bad Request due to missing required parameters.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "Missing required parameters: vatId, subjectDid, or hqCountryCode."
+ *       500:
+ *         description: Internal Server Error due to an unexpected issue while processing the request.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "Failed to obtain GAIA-X Compliance VC"
+ */
 app.post("/api/gaiax", async (req, res) => {
     // 1. Input Extraction
     const vatId = req.body?.vatId;

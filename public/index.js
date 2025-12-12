@@ -17,8 +17,8 @@ const APP_BASE_URL = isLocalhost
 // Define activateTab in the global scope so showLoginOptions can call it.
 
 // DOMAIN NAME for the AuthZ Server Agent *****************************************************************************
-const authzServer = "uself-issuer-agent.cyclops1618.gleeze.com"; 
-// const authzServer = "uself-issuer-agent.cyclops314.gleeze.com"; 
+// const authzServer = "uself-issuer-agent.cyclops1618.gleeze.com"; 
+   const authzServer = "uself-issuer-agent.cyclops314.gleeze.com"; 
 // DOMAIN NAME for the AuthZ Server Agent *****************************************************************************
 
 
@@ -1529,7 +1529,7 @@ async function selfIssueLegalParticipantVc(tcVcId) {
                 "https://www.w3.org/ns/credentials/v2",
                 "https://w3id.org/gaia-x/development#"
             ],
-            "@id":vcId,
+            "@id":vcId3,
             "type":["VerifiableCredential", "gx:DataConsumer"],
             "issuer":participantDid,
             "validFrom":validFrom,
@@ -1796,12 +1796,12 @@ window.addEventListener("DOMContentLoaded", async () => {
                 console.log("Auto-G Compliance VC Response:", gaiaxComplianceVC); 
             });
 
-            autoGrequest().then(gaiaxShapes => {
-                document.getElementById("autoGxShapes").textContent = JSON.stringify(gaiaxShapes, null, 2);   
+            // autoGrequest().then(gaiaxShapes => {
+            //    document.getElementById("autoGxShapes").textContent = JSON.stringify(gaiaxShapes, null, 2);   
                 //output the response of autoGrequest to the console for debugging
-                console.log("Auto-G Shapes Response:", gaiaxShapes);   
+            //    console.log("Auto-G Shapes Response:", gaiaxShapes);   
                 
-            });
+            //});
             
         }
     });
