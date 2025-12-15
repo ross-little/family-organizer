@@ -440,6 +440,15 @@ async function initiateSsiLogin() {
     authUrl.searchParams.set("nonce", currentNonce);
     authUrl.searchParams.set("redirect", "false");
 
+    // Display the serachParams for debugging
+    console.log("SSI Auth URL Search Params:", authUrl.searchParams.toString());
+    
+    // Display the full authUrl for debugging
+    console.log("Full SSI Auth URL:", authUrl.toString());
+
+    // Display the serachParams in the debug panel
+    const debugBox = document.getElementById("ssiDebug");
+
     try {
         const response = await fetch(authUrl, { method: "GET", headers: { "Accept": "application/json" } });
         const rawText = await response.text();
@@ -483,6 +492,10 @@ async function initiateSsiLogin() {
 }
 
 function startListeningForLogin(state) { //Update to use "state" instead of "nonce" for code flow
+
+    // debug log
+    console.log("[SSE] SSE received for SSI login events with state:", state);
+
   if (currentSse) return;
   // const subscribeUrl = `https://${authzServer}/sse-server/stream-events/${nonce}`;
   // Update for code flow to use "state" instead of "nonce" and Server.js SSE endpoint
