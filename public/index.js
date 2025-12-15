@@ -17,8 +17,8 @@ const APP_BASE_URL = isLocalhost
 // Define activateTab in the global scope so showLoginOptions can call it.
 
 // DOMAIN NAME for the AuthZ Server Agent *****************************************************************************
-// const authzServer = "uself-issuer-agent.cyclops1618.gleeze.com"; 
-   const authzServer = "uself-issuer-agent.cyclops314.gleeze.com"; 
+ const authzServer = "uself-issuer-agent.cyclops1618.gleeze.com"; 
+//   const authzServer = "uself-issuer-agent.cyclops314.gleeze.com"; 
 // DOMAIN NAME for the AuthZ Server Agent *****************************************************************************
 
 
