@@ -1278,6 +1278,24 @@ async function requestGaiaxRegistrationNumberVc(vatId,subjectDid) {
 }
 
 
+function buildX5cFromFullchain(fullchainPath) {
+    const pem = fs.readFileSync(fullchainPath, "utf8");
+
+    const certs = pem.match(
+        /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g
+    );
+
+    if (!certs || certs.length === 0) {
+        throw new Error("No certificates found in fullchain.pem");
+    }
+
+    return certs.map(cert =>
+        cert
+            .replace(/-----BEGIN CERTIFICATE-----/g, "")
+            .replace(/-----END CERTIFICATE-----/g, "")
+            .replace(/\s+/g, "")
+    );
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////// END OF UPDATES TO PROVIDE GAIA-X  VC IN THE BACKEND //////////////////////
@@ -1530,6 +1548,13 @@ app.get("/.well-known/did.json", (req, res) => {
                 
             // Protocol must be explicitly included for the URI: https://<domain>
             const x5uUri = `https://${DOMAIN}/.well-known/fullpem/0001_chain.pem`;
+            const fullchainPath = path.join(process.cwd(), "public", ".well-known", "fullpem", "0001_chain.pem");
+            const x5c = buildX5cFromFullchain(fullchainPath);
+            // Console logging x5uUri
+            console.log("x5u URI:", x5uUri);
+
+            console.log("x5c array:", x5c);
+            
             const base64Leaf = leafPem
             .replace(/-----BEGIN CERTIFICATE-----/, "")
             .replace(/-----END CERTIFICATE-----/, "")
@@ -1544,7 +1569,7 @@ app.get("/.well-known/did.json", (req, res) => {
                 x: jwkResult.x,
                 y: jwkResult.y,
                 // x5u: x5uUri,
-                x5c:[base64Leaf],
+                x5c,
                 // Include debug info temporarily
                 _debug: jwkResult._debug 
             };
