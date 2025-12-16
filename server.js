@@ -1568,8 +1568,8 @@ app.get("/.well-known/did.json", (req, res) => {
                 crv: "P-256", // Standard name for JWK/DID-JWK
                 x: jwkResult.x,
                 y: jwkResult.y,
-                x5u: x5uUri,
-                // x5c,
+                // x5u: x5uUri,
+                x5c,
                 // Include debug info temporarily
                 _debug: jwkResult._debug 
             };
