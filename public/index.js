@@ -1174,16 +1174,10 @@ async function gaiaxComplianceVc() {
 
         // --- LOG RAW JWT TO DEBUG PANEL (as requested) ---
         console.log("[GAIA-X] rawVp (first 300 chars):", rawVp.substring(0, 1300) + (rawVp.length > 1300 ? "..." : ""));
-
-
-        // Show whole rawVp in debug box
-        const debugBox = document.getElementById("ssiDebug");
-        if (debugBox) {
-            debugBox.textContent += `\n[${new Date().toISOString()}] ******** GAIA-X Compliance VP (JWT):\n${rawVp}`;
-            debugBox.scrollTop = debugBox.scrollHeight;
-        }
+        // Show itin th console warn too
+        console.warn("[GAIA-X] Sent Compliance VP JWT:", rawVp);
         // --- END LOG RAW JWT TO DEBUG PANEL ---
-        
+
             // Client-side error handling for the external API call
         if (!complianceResponse.ok) {
             let errorDetails = `Status: ${complianceResponse.status}`;
