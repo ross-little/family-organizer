@@ -1071,7 +1071,8 @@ async function gaiaxComplianceVc() {
     }
 
     // const complianceUrlDirect = "https://compliance.lab.gaia-x.eu/development/api/credential-offers/standard-compliance";
-    const complianceUrlDirect = "https://compliance.lab.gaia-x.eu/main/api/credential-offers/standard-compliance";
+    // const complianceUrlDirect = "https://compliance.lab.gaia-x.eu/main/api/credential-offers/standard-compliance";
+    const complianceUrlDirect = "https://compliance.gaia-x.eu/v2/api/credential-offers/standard-compliance";
     let vcId = `${APP_BASE_URL}/credentials/${uuidv4()}`;
     
     // --- DATE FORMAT FIX ---
@@ -1169,6 +1170,13 @@ async function gaiaxComplianceVc() {
             "Accept": "application/vc+jwt"
         },
         body: rawVp  // 🟩 send the VP-JWT directly, NOT JSON-wrapped
+        // console logging of rawVp
+        console.log("→ rawVp (first 300 chars):", rawVp.substring(0, 1000) + (rawVp.length > 10000 ? "..." : ""));
+        // Show whole rawVp in debug box
+        const debugBox = document.getElementById("ssiDebug");
+        if (debugBox) {
+            debugBox.textContent += `\n[${new Date().toISOString()}] ******** GAIA-X Compliance VP (JWT):\n${rawVp}`;
+            debugBox.scrollTop = debugBox.scrollHeight;     
         });
 
 
