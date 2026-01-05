@@ -675,8 +675,8 @@ let GX_TEMPLATES = {
 
 
 async function fetchAndParseGaiaxShapes() {
-  const SHAPES_URL =
-    "https://registry.lab.gaia-x.eu/development/api/trusted-shape-registry/v1/shapes/jsonld/trustframework#";
+  // const SHAPES_URL = "https://registry.lab.gaia-x.eu/development/api/trusted-shape-registry/v1/shapes/jsonld/trustframework#";
+  const SHAPES_URL = "https://registry.lab.gaia-x.eu/main/shapes/2411";
 
   console.log("[GAIA-X] Fetching SHACL shapes from:", SHAPES_URL);
 
@@ -709,7 +709,7 @@ async function fetchAndParseGaiaxShapes() {
 
     // Fallback minimal shapes
     GX_TEMPLATES.LegalPerson = {
-      "@context": ["https://www.w3.org/ns/did/v1", "https://w3id.org/gaia-x/development"],
+      "@context": ["https://www.w3.org/ns/did/v1", "https://w3id.org/gaia-x/main"],
       "type": "gx:LegalPerson",
       "gx:legalName": "",
       "gx:registrationNumber": "",
@@ -718,7 +718,7 @@ async function fetchAndParseGaiaxShapes() {
     };
 
     GX_TEMPLATES.TermsAndConditions = {
-      "@context": ["https://www.w3.org/ns/did/v1", "https://w3id.org/gaia-x/development"],
+      "@context": ["https://www.w3.org/ns/did/v1", "https://w3id.org/gaia-x/main"],
       "type": "gx:TermsAndConditions",
       "gx:termsURL": "",
       "gx:version": "",
@@ -821,7 +821,8 @@ function buildTemplate(shape, typeIRI) {
   const template = {
     "@context": [
       "https://www.w3.org/ns/did/v1",
-      "https://registry.lab.gaia-x.eu/development/api/trusted-shape-registry/v1/shapes/jsonld/trustframework#",
+      "https://registry.lab.gaia-x.eu/main/shapes/2411"
+      //"https://registry.lab.gaia-x.eu/development/api/trusted-shape-registry/v1/shapes/jsonld/trustframework#",
     ],
     type: typeIRI,
   };
@@ -839,7 +840,8 @@ function buildTemplate(shape, typeIRI) {
 
 // ===== GAIA-X VC Operations (Step 1: Request Legal Registration VC) =====
 async function requestGaiaxVc() {
-    const NOTARY_API_BASE = "https://registrationnumber.notary.lab.gaia-x.eu/development/registration-numbers/vat-id/";
+    // const NOTARY_API_BASE = "https://registrationnumber.notary.lab.gaia-x.eu/development/registration-numbers/vat-id/";
+    const NOTARY_API_BASE = "https://registrationnumber.notary.lab.gaia-x.eu/main/registration-numbers/vat-id/";
     const btn = document.getElementById("requestVcBtn");
     const vatId = document.getElementById("vatIdInput").value;
 
@@ -1068,7 +1070,8 @@ async function gaiaxComplianceVc() {
         return;
     }
 
-    const complianceUrlDirect = "https://compliance.lab.gaia-x.eu/development/api/credential-offers/standard-compliance";
+    // const complianceUrlDirect = "https://compliance.lab.gaia-x.eu/development/api/credential-offers/standard-compliance";
+    const complianceUrlDirect = "https://compliance.lab.gaia-x.eu/main/api/credential-offers/standard-compliance";
     let vcId = `${APP_BASE_URL}/credentials/${uuidv4()}`;
     
     // --- DATE FORMAT FIX ---
@@ -1296,7 +1299,8 @@ async function selfIssueTermsAndConditionsVc() {
         const vcPayload = {
             "@context": [
                 "https://www.w3.org/ns/credentials/v2",
-                "https://w3id.org/gaia-x/development#"
+                // "https://w3id.org/gaia-x/development#"
+                "https://w3id.org/gaia-x/main#"
             ],
             type: ["VerifiableCredential", "gx:TermsAndConditions"],
             "@id": vcId,
@@ -1392,7 +1396,8 @@ async function selfIssueLegalParticipantVc(tcVcId) {
         const vcPayload = {
             "@context": [
                 "https://www.w3.org/ns/credentials/v2",
-                "https://w3id.org/gaia-x/development#"
+                //"https://w3id.org/gaia-x/development#"
+                "https://w3id.org/gaia-x/main#"
             ],
             "@id":vcId,
             "type":["VerifiableCredential", "gx:LegalPerson"],
@@ -1492,7 +1497,8 @@ async function selfIssueLegalParticipantVc(tcVcId) {
         const issuerVcPayload = {
             "@context": [
                 "https://www.w3.org/ns/credentials/v2",
-                "https://w3id.org/gaia-x/development#"
+                // "https://w3id.org/gaia-x/development#"
+                "https://w3id.org/gaia-x/main#"
             ],
             "@id": vcId2,
             // Per your request, setting type to 'gx:Issuer'
@@ -1540,7 +1546,8 @@ async function selfIssueLegalParticipantVc(tcVcId) {
         const DCvcPayload = {
             "@context": [
                 "https://www.w3.org/ns/credentials/v2",
-                "https://w3id.org/gaia-x/development#"
+                //"https://w3id.org/gaia-x/development#"
+                "https://w3id.org/gaia-x/main#"
             ],
             "@id":vcId3,
             "type":["VerifiableCredential", "gx:DataConsumer"],
