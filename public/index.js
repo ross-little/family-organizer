@@ -1170,18 +1170,19 @@ async function gaiaxComplianceVc() {
             "Accept": "application/vc+jwt"
         },
         body: rawVp  // 🟩 send the VP-JWT directly, NOT JSON-wrapped
-        // console logging of rawVp
-        console.log("→ rawVp (first 300 chars):", rawVp.substring(0, 1000) + (rawVp.length > 10000 ? "..." : ""));
+        });
+
+        // --- LOG RAW JWT TO DEBUG PANEL (as requested) ---
+        console.log("[GAIA-X] rawVp (first 300 chars):", rawVp.substring(0, 1300) + (rawVp.length > 1300 ? "..." : ""));
+
+
         // Show whole rawVp in debug box
         const debugBox = document.getElementById("ssiDebug");
         if (debugBox) {
             debugBox.textContent += `\n[${new Date().toISOString()}] ******** GAIA-X Compliance VP (JWT):\n${rawVp}`;
-            debugBox.scrollTop = debugBox.scrollHeight;     
-        });
-
-
-                
-
+            debugBox.scrollTop = debugBox.scrollHeight;
+        }
+        // --- END LOG RAW JWT TO DEBUG PANEL ---
         
             // Client-side error handling for the external API call
         if (!complianceResponse.ok) {
