@@ -1070,9 +1070,9 @@ async function gaiaxComplianceVc() {
         return;
     }
 
-    // const complianceUrlDirect = "https://compliance.lab.gaia-x.eu/development/api/credential-offers/standard-compliance";
+    const complianceUrlDirect = "https://compliance.lab.gaia-x.eu/development/api/credential-offers/standard-compliance";
     // const complianceUrlDirect = "https://compliance.lab.gaia-x.eu/main/api/credential-offers/standard-compliance";
-    const complianceUrlDirect = "https://compliance.gaia-x.eu/v2/api/credential-offers/standard-compliance";
+    // const complianceUrlDirect = "https://compliance.gaia-x.eu/v2/api/credential-offers/standard-compliance";
     let vcId = `${APP_BASE_URL}/credentials/${uuidv4()}`;
     
     // --- DATE FORMAT FIX ---
