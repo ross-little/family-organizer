@@ -1071,7 +1071,7 @@ async function gaiaxComplianceVc() {
     }
 
     //const complianceUrlDirect = "https://compliance.lab.gaia-x.eu/development/api/credential-offers/standard-compliance";
-    const complianceUrlDirect = "https://gx-compliance-service.dev1.ari-bip.eu/v2/api/credential-offers/standard-compliance";   
+    const complianceUrlDirect = "https://gx-compliance-service.dev1.ari-bip.eu/api/credential-offers/standard-compliance";   
 
     
     // const complianceUrlDirect = "https://compliance.lab.gaia-x.eu/main/api/credential-offers/standard-compliance";
