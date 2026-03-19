@@ -314,8 +314,7 @@ async function testSignAndVerify() {
     // exp: Math.floor(Date.now() / 1000) + 3600,
     // vc: { type: ["VerifiableCredential"], credentialSubject: { id: DID } }
     iss: "issuer1",
-    sub: "subject1",
-    exp: Date(4728000000L)
+    sub: "subject1"
   };
 
   const protectedHeader = {
