@@ -318,7 +318,7 @@ async function testSignAndVerify() {
   };
 
   const protectedHeader = {
-    kid: VERIFICATION_METHOD_ID,
+    kid: "x509-jwk-1",
     typ: "vc+jwt",
     alg: "ES256"
   };
