@@ -309,10 +309,13 @@ async function testSignAndVerify() {
   console.log("\n🧪 ************ Running startup test: sign and verify VC");
 
   const payload = {
-    sub: "did:web:family-organizer.onrender.com#test",
-    iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 3600,
-    vc: { type: ["VerifiableCredential"], credentialSubject: { id: DID } }
+    // sub: "did:web:family-organizer.onrender.com#test",
+    // iat: Math.floor(Date.now() / 1000),
+    // exp: Math.floor(Date.now() / 1000) + 3600,
+    // vc: { type: ["VerifiableCredential"], credentialSubject: { id: DID } }
+    iss: "issuer1",
+    sub: "subject1",
+    exp: Date(4728000000L)
   };
 
   const protectedHeader = {
@@ -326,6 +329,7 @@ async function testSignAndVerify() {
       .sign(signingKey);
   try {
 
+    console.log("✅ Payload:", payload);
     console.log("✅ Signed JWT:", signedJwt);
 
     // Load public key from certificate
