@@ -318,9 +318,9 @@ async function testSignAndVerify() {
   };
 
   const protectedHeader = {
-    alg: "ES256",
+    kid: VERIFICATION_METHOD_ID,
     typ: "vc+jwt",
-    kid: VERIFICATION_METHOD_ID
+    alg: "ES256"
   };
 
   const signedJwt = await new jose.SignJWT(payload)
